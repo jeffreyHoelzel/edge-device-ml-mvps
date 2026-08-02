@@ -6,7 +6,7 @@ A small, deterministic, CPU-only Python proof of concept that forecasts an impen
 - Likely cause: RF interference, congestion, backhaul degradation, or device fault
 - Severity: minor, major, or critical
 
-The seven input KPIs are latency, jitter, packet loss, uplink throughput, downlink throughput, signal quality, and retransmission count. Synthetic incident windows gradually degrade near the end, making them suitable for an advance forecast rather than only post-incident classification.
+The seven input KPIs are latency, jitter, packet loss, uplink throughput, downlink throughput, signal quality, and retransmission count. Synthetic incident windows expose early degradation precursors in the observed window and reach their labelled incident state exactly 60 seconds later. KPI samples have a fixed five-second cadence, so the target is 12 samples ahead and is never included in the model input.
 
 ## Requirements
 

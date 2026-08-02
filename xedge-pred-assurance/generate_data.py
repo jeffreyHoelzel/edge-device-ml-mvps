@@ -18,6 +18,9 @@ FEATURE_NAMES = (
 )
 CAUSE_NAMES = ("rf_interference", "congestion", "backhaul_degradation", "device_fault")
 SEVERITY_NAMES = ("minor", "major", "critical")
+SAMPLE_INTERVAL_SECONDS = 5
+FORECAST_HORIZON_SECONDS = 60
+FORECAST_STEPS = FORECAST_HORIZON_SECONDS // SAMPLE_INTERVAL_SECONDS
 
 # Stable scaling makes training and streaming use exactly the same representation.
 FEATURE_MEAN = np.array([35.0, 4.0, 0.1, 35.0, 80.0, 82.0, 1.0], dtype=np.float32)
@@ -33,24 +36,26 @@ def _severity_strength(severity: int) -> float:
     return (0.48, 0.75, 1.0)[severity]
 
 
-def generate_sequence(
-    sequence_length: int,
+def _generate_trajectory(
+    length: int,
     cause_id: int | None,
-    severity: int = 1,
-    rng: np.random.Generator | None = None,
+    severity: int,
+    rng: np.random.Generator,
+    degradation_start: int | None = None,
 ) -> np.ndarray:
-    """Return one raw KPI window, optionally ending in a degradation pattern."""
-    rng = rng or np.random.default_rng()
-    time = np.arange(sequence_length, dtype=np.float32)
+    """Return one raw KPI trajectory with an optional degradation ramp."""
+    time = np.arange(length, dtype=np.float32)
     daily_wobble = np.sin(time / 5.0)[:, None]
     baseline = np.array([35.0, 4.0, 0.1, 35.0, 80.0, 82.0, 1.0], dtype=np.float32)
     noise = np.array([3.0, 0.8, 0.04, 2.0, 4.0, 2.0, 0.5], dtype=np.float32)
     values = baseline + daily_wobble * np.array([1.5, 0.4, 0.01, 1.0, 1.5, 1.0, 0.1])
-    values += rng.normal(0.0, noise, size=(sequence_length, len(FEATURE_NAMES))).astype(np.float32)
+    values += rng.normal(0.0, noise, size=(length, len(FEATURE_NAMES))).astype(np.float32)
 
     if cause_id is not None:
-        start = rng.integers(max(2, sequence_length // 3), max(3, sequence_length * 2 // 3))
-        ramp = np.clip((time - start) / max(1, sequence_length - start - 1), 0.0, 1.0)
+        start = degradation_start
+        if start is None:
+            start = int(rng.integers(max(2, length // 3), max(3, length * 2 // 3)))
+        ramp = np.clip((time - start) / max(1, length - start - 1), 0.0, 1.0)
         strength = _severity_strength(severity)
         effects = (
             np.array([42, 13, 2.2, -18, -38, -40, 8], dtype=np.float32),  # RF
@@ -61,7 +66,7 @@ def generate_sequence(
         values += ramp[:, None] * strength * effects
         if cause_id == 3:
             # Device faults are characteristically bursty as well as degraded.
-            spikes = rng.random(sequence_length) < (0.10 + 0.12 * ramp)
+            spikes = rng.random(length) < (0.10 + 0.12 * ramp)
             values[spikes, 1] += 18.0 * strength
             values[spikes, 6] += 10.0 * strength
 
@@ -72,8 +77,54 @@ def generate_sequence(
     return values.astype(np.float32)
 
 
+def generate_sequence(
+    sequence_length: int,
+    cause_id: int | None,
+    severity: int = 1,
+    rng: np.random.Generator | None = None,
+) -> np.ndarray:
+    """Return one raw KPI window, optionally ending in a degradation pattern."""
+    if sequence_length < 2:
+        raise ValueError("sequence_length must be at least 2")
+    if cause_id is not None and not 0 <= cause_id < len(CAUSE_NAMES):
+        raise ValueError(f"cause_id must be between 0 and {len(CAUSE_NAMES) - 1}")
+    if not 0 <= severity < len(SEVERITY_NAMES):
+        raise ValueError(f"severity must be between 0 and {len(SEVERITY_NAMES) - 1}")
+    return _generate_trajectory(sequence_length, cause_id, severity, rng or np.random.default_rng())
+
+
+def generate_forecast_window(
+    sequence_length: int,
+    cause_id: int | None,
+    severity: int = 1,
+    rng: np.random.Generator | None = None,
+) -> np.ndarray:
+    """Return observations whose optional incident reaches target state 60 seconds later.
+
+    Incidents begin as a weak precursor inside the observed window and reach the
+    labelled state at the fixed future target. The target sample is not returned.
+    """
+    if sequence_length < 8:
+        raise ValueError("sequence_length must be at least 8")
+    if cause_id is not None and not 0 <= cause_id < len(CAUSE_NAMES):
+        raise ValueError(f"cause_id must be between 0 and {len(CAUSE_NAMES) - 1}")
+    if not 0 <= severity < len(SEVERITY_NAMES):
+        raise ValueError(f"severity must be between 0 and {len(SEVERITY_NAMES) - 1}")
+    rng = rng or np.random.default_rng()
+    total_length = sequence_length + FORECAST_STEPS
+    start = None
+    if cause_id is not None:
+        start = int(rng.integers(sequence_length // 2, sequence_length - 1))
+    trajectory = _generate_trajectory(total_length, cause_id, severity, rng, start)
+    return trajectory[:sequence_length]
+
+
 def make_dataset(samples: int, sequence_length: int, seed: int = 7) -> dict[str, np.ndarray]:
-    """Build a balanced-enough mix of normal and four labeled incident windows."""
+    """Build windows labelled by an SLA-degradation state 60 seconds ahead."""
+    if samples < 1:
+        raise ValueError("samples must be positive")
+    if sequence_length < 8:
+        raise ValueError("sequence_length must be at least 8")
     rng = np.random.default_rng(seed)
     raw = np.empty((samples, sequence_length, len(FEATURE_NAMES)), dtype=np.float32)
     incident = np.empty(samples, dtype=np.float32)
@@ -86,9 +137,9 @@ def make_dataset(samples: int, sequence_length: int, seed: int = 7) -> dict[str,
         if is_incident:
             cause[row] = int(rng.integers(len(CAUSE_NAMES)))
             severity[row] = int(rng.choice(3, p=(0.28, 0.48, 0.24)))
-            raw[row] = generate_sequence(sequence_length, int(cause[row]), int(severity[row]), rng)
+            raw[row] = generate_forecast_window(sequence_length, int(cause[row]), int(severity[row]), rng)
         else:
-            raw[row] = generate_sequence(sequence_length, None, rng=rng)
+            raw[row] = generate_forecast_window(sequence_length, None, rng=rng)
 
     return {
         "x": normalize_features(raw),
