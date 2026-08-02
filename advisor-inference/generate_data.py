@@ -42,7 +42,12 @@ def _impact(amplitude: float, bandwidth: float, duty_cycle: float) -> int:
 
 def generate_sample(rng: np.random.Generator, class_id: int | None = None) -> Sample:
     """Create one window and labels with randomized physical characteristics."""
-    class_id = int(rng.integers(len(CLASS_NAMES))) if class_id is None else class_id
+    if class_id is None:
+        class_id = int(rng.integers(len(CLASS_NAMES)))
+    elif not isinstance(class_id, (int, np.integer)) or isinstance(class_id, bool):
+        raise ValueError(f"class_id must be an integer from 0 to {len(CLASS_NAMES) - 1}")
+    elif not 0 <= class_id < len(CLASS_NAMES):
+        raise ValueError(f"class_id must be from 0 to {len(CLASS_NAMES) - 1}, got {class_id}")
     noise_floor = float(rng.uniform(-1.25, -0.45))
     window = rng.normal(noise_floor, rng.uniform(0.08, 0.20), (TIME_BINS, FREQUENCY_BINS)).astype(np.float32)
 
@@ -96,6 +101,8 @@ def generate_sample(rng: np.random.Generator, class_id: int | None = None) -> Sa
 
 
 def generate_dataset(samples: int, seed: int = 42) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    if samples < 1:
+        raise ValueError("samples must be at least 1")
     rng = np.random.default_rng(seed)
     generated = [generate_sample(rng, index % len(CLASS_NAMES)) for index in range(samples)]
     rng.shuffle(generated)
@@ -129,6 +136,8 @@ def main() -> None:
     parser.add_argument("--sample-output", type=Path, default=Path("data/example_spectrogram.npy"))
     parser.add_argument("--preview", type=Path, default=Path("artifacts/generated_examples.png"))
     args = parser.parse_args()
+    if args.samples < 1:
+        parser.error("--samples must be at least 1")
     spectrograms, classes, bounds, impacts = generate_dataset(args.samples, args.seed)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(args.output, spectrograms=spectrograms, classes=classes, bounds=bounds, impacts=impacts)
