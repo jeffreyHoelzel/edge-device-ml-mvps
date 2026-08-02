@@ -11,8 +11,17 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from generate_data import make_dataset
-from model import PredictiveAssuranceModel, save_model
+from generate_data import (
+    CAUSE_NAMES,
+    FEATURE_MEAN,
+    FEATURE_NAMES,
+    FEATURE_STD,
+    FORECAST_HORIZON_SECONDS,
+    SAMPLE_INTERVAL_SECONDS,
+    SEVERITY_NAMES,
+    make_dataset,
+)
+from model import PredictiveAssuranceModel, TrainingContract, save_model
 
 
 def set_seed(seed: int) -> None:
@@ -79,7 +88,17 @@ def main() -> None:
             total_loss += loss.item() * len(x)
         print(f"epoch {epoch:02d}/{args.epochs}: loss={total_loss / len(dataset):.4f}")
 
-    save_model(model, args.output)
+    contract = TrainingContract(
+        feature_names=FEATURE_NAMES,
+        feature_mean=tuple(float(value) for value in FEATURE_MEAN),
+        feature_std=tuple(float(value) for value in FEATURE_STD),
+        cause_names=CAUSE_NAMES,
+        severity_names=SEVERITY_NAMES,
+        sequence_length=data["x"].shape[1],
+        sample_interval_seconds=SAMPLE_INTERVAL_SECONDS,
+        forecast_horizon_seconds=FORECAST_HORIZON_SECONDS,
+    )
+    save_model(model, args.output, contract)
     print(f"Saved CPU model to {args.output}")
 
 

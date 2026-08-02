@@ -9,6 +9,9 @@ import torch
 from torch import nn
 
 
+CHECKPOINT_FORMAT_VERSION = 2
+
+
 @dataclass(frozen=True)
 class ModelConfig:
     input_features: int = 7
@@ -16,6 +19,27 @@ class ModelConfig:
     gru_hidden: int = 32
     cause_classes: int = 4
     severity_classes: int = 3
+
+
+@dataclass(frozen=True)
+class TrainingContract:
+    """Preprocessing and forecast semantics required to use a checkpoint."""
+
+    feature_names: tuple[str, ...]
+    feature_mean: tuple[float, ...]
+    feature_std: tuple[float, ...]
+    cause_names: tuple[str, ...]
+    severity_names: tuple[str, ...]
+    sequence_length: int
+    sample_interval_seconds: int
+    forecast_horizon_seconds: int
+    model_version: str = "predictive-assurance-v2"
+
+
+@dataclass(frozen=True)
+class LoadedModel:
+    model: "PredictiveAssuranceModel"
+    contract: TrainingContract
 
 
 class PredictiveAssuranceModel(nn.Module):
@@ -46,14 +70,42 @@ class PredictiveAssuranceModel(nn.Module):
         }
 
 
-def save_model(model: PredictiveAssuranceModel, path: Path) -> None:
+def save_model(model: PredictiveAssuranceModel, path: Path, contract: TrainingContract) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save({"config": asdict(model.config), "state_dict": model.state_dict()}, path)
+    torch.save(
+        {
+            "format_version": CHECKPOINT_FORMAT_VERSION,
+            "config": asdict(model.config),
+            "contract": asdict(contract),
+            "state_dict": model.state_dict(),
+        },
+        path,
+    )
 
 
-def load_model(path: Path, device: str = "cpu") -> PredictiveAssuranceModel:
+def load_model(path: Path, device: str = "cpu") -> LoadedModel:
     checkpoint = torch.load(path, map_location=device, weights_only=True)
-    model = PredictiveAssuranceModel(ModelConfig(**checkpoint["config"]))
-    model.load_state_dict(checkpoint["state_dict"])
+    if checkpoint.get("format_version") != CHECKPOINT_FORMAT_VERSION:
+        raise ValueError(
+            f"{path} is not a predictive-assurance v{CHECKPOINT_FORMAT_VERSION} checkpoint; retrain the model"
+        )
+    try:
+        config = ModelConfig(**checkpoint["config"])
+        contract_values = checkpoint["contract"]
+        contract = TrainingContract(
+            feature_names=tuple(contract_values["feature_names"]),
+            feature_mean=tuple(contract_values["feature_mean"]),
+            feature_std=tuple(contract_values["feature_std"]),
+            cause_names=tuple(contract_values["cause_names"]),
+            severity_names=tuple(contract_values["severity_names"]),
+            sequence_length=contract_values["sequence_length"],
+            sample_interval_seconds=contract_values["sample_interval_seconds"],
+            forecast_horizon_seconds=contract_values["forecast_horizon_seconds"],
+            model_version=contract_values["model_version"],
+        )
+        model = PredictiveAssuranceModel(config)
+        model.load_state_dict(checkpoint["state_dict"])
+    except (KeyError, TypeError, RuntimeError) as error:
+        raise ValueError(f"{path} has an invalid predictive-assurance checkpoint contract") from error
     model.to(device).eval()
-    return model
+    return LoadedModel(model=model, contract=contract)

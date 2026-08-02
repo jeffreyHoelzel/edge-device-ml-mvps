@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from generate_data import CAUSE_NAMES, SEVERITY_NAMES, generate_sequence, normalize_features
+from generate_data import CAUSE_NAMES, SEVERITY_NAMES, generate_sequence
 from model import load_model
 
 
@@ -29,32 +29,35 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", type=Path, default=Path("artifacts/model.pt"))
     parser.add_argument("--cause", choices=CAUSE_NAMES, default="rf_interference")
-    parser.add_argument("--sequence-length", type=int, default=30)
     parser.add_argument("--seed", type=int, default=17)
-    parser.add_argument("--horizon-seconds", type=int, default=60)
     args = parser.parse_args()
     if not args.model.exists():
         raise FileNotFoundError(f"{args.model} was not found; run train.py first")
 
-    model = load_model(args.model)
+    loaded = load_model(args.model)
+    model = loaded.model
+    contract = loaded.contract
+    if contract.cause_names != CAUSE_NAMES:
+        raise ValueError("checkpoint cause mapping does not match the streaming demo")
     raw_measurements = generate_sequence(
-        args.sequence_length + 12,
+        contract.sequence_length + 12,
         CAUSE_NAMES.index(args.cause),
         severity=1,
         rng=np.random.default_rng(args.seed),
     )
-    buffer: deque[np.ndarray] = deque(maxlen=args.sequence_length)
+    buffer: deque[np.ndarray] = deque(maxlen=contract.sequence_length)
     for measurement in raw_measurements:
         buffer.append(measurement)
-        if len(buffer) < args.sequence_length:
+        if len(buffer) < contract.sequence_length:
             continue
-        window = normalize_features(np.asarray(buffer))[None, ...]
+        raw_window = np.asarray(buffer, dtype=np.float32)
+        window = ((raw_window - contract.feature_mean) / contract.feature_std).astype(np.float32)[None, ...]
         with torch.inference_mode():
             output = model(torch.from_numpy(window))
             probability = torch.sigmoid(output["incident_logits"])[0].item()
             cause = int(output["cause_logits"].argmax(dim=1)[0])
             severity = int(output["severity_logits"].argmax(dim=1)[0])
-        print(json.dumps(forecast_event(probability, cause, severity, args.horizon_seconds), sort_keys=True))
+        print(json.dumps(forecast_event(probability, cause, severity, contract.forecast_horizon_seconds), sort_keys=True))
 
 
 if __name__ == "__main__":
