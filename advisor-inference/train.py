@@ -10,8 +10,17 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from contract import FREQUENCY_BINS, INPUT_SHAPE, NORMALIZATION_NAME, TIME_BINS, normalize_per_window
-from model import RFInterferenceCNN
+from contract import (
+    CHECKPOINT_FORMAT_VERSION,
+    CLASS_NAMES,
+    FREQUENCY_BINS,
+    IMPACT_NAMES,
+    INPUT_SHAPE,
+    NORMALIZATION_NAME,
+    TIME_BINS,
+    normalize_per_window,
+)
+from model import NUM_CLASSES, NUM_IMPACT_LEVELS, RFInterferenceCNN
 
 
 def positive_int(value: str) -> int:
@@ -200,9 +209,14 @@ def main() -> None:
     args.model_output.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
         {
+            "format_version": CHECKPOINT_FORMAT_VERSION,
             "model_state": best_model_state,
             "input_shape": list(INPUT_SHAPE),
             "normalization": NORMALIZATION_NAME,
+            "model_config": {"num_classes": NUM_CLASSES, "num_impact_levels": NUM_IMPACT_LEVELS},
+            "class_names": list(CLASS_NAMES),
+            "impact_names": list(IMPACT_NAMES),
+            "training_seed": args.seed,
             "best_epoch": best_epoch,
             "validation_metrics": best_metrics,
         },
