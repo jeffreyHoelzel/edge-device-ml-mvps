@@ -15,8 +15,8 @@ uv sync --dev
 ## Generate data and inspect it
 
 ```bash
-uv run --directory advisor-infra python generate_data.py --samples 1000 --output data/train.npz
-uv run --directory advisor-infra python visualize_sample.py --input data/example_spectrogram.npy --output artifacts/sample_visualization.png
+uv run --directory advisor-inference python generate_data.py --samples 1000 --output data/train.npz
+uv run --directory advisor-inference python visualize_sample.py --input data/example_spectrogram.npy --output artifacts/sample_visualization.png
 ```
 
 `generate_data.py` also saves a five-class overview to `artifacts/generated_examples.png` and a single `.npy` inference input to `data/example_spectrogram.npy`. These PNGs are intended for quick visual inspection.
@@ -24,7 +24,7 @@ uv run --directory advisor-infra python visualize_sample.py --input data/example
 ## Train and save a model
 
 ```bash
-uv run --directory advisor-infra python train.py --data data/train.npz --epochs 18 --model-output artifacts/rf_interference_cnn.pt
+uv run --directory advisor-inference python train.py --data data/train.npz --epochs 18 --model-output artifacts/rf_interference_cnn.pt
 ```
 
 The checkpoint contains the model state and is saved as a CPU-compatible PyTorch `.pt` file.
@@ -32,7 +32,7 @@ The checkpoint contains the model state and is saved as a CPU-compatible PyTorch
 ## Run inference
 
 ```bash
-uv run --directory advisor-infra python infer.py data/example_spectrogram.npy --model artifacts/rf_interference_cnn.pt
+uv run --directory advisor-inference python infer.py data/example_spectrogram.npy --model artifacts/rf_interference_cnn.pt
 ```
 
 Example output shape:
@@ -53,7 +53,7 @@ Frequency values are normalized to the `[0, 1]` span of the input window. For `n
 ## Test
 
 ```bash
-PYTHONPATH=advisor-infra uv run pytest advisor-infra/tests
+PYTHONPATH=advisor-inference uv run pytest advisor-inference/tests
 ```
 
 The tests check all output-head shapes and enforce normalized, ordered frequency bounds both in the CNN and in generated interference labels.
