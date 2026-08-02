@@ -31,3 +31,15 @@ def test_checkpoint_can_be_saved_and_reloaded(tmp_path) -> None:
     save_checkpoint(model, path)
     after = load_checkpoint(path)(features)[0]
     assert np.allclose(before.detach().numpy(), after.detach().numpy())
+
+
+@pytest.mark.parametrize("sequence_length", [0, 1, 2])
+def test_generator_rejects_short_sequences(sequence_length) -> None:
+    with pytest.raises(ValueError, match="at least 3"):
+        generate_dataset(samples=5, sequence_length=sequence_length)
+
+
+def test_inference_rejects_short_sequences() -> None:
+    model = RootCauseGRU(input_size=9).eval()
+    with pytest.raises(ValueError, match="at least 3"):
+        build_event(model, np.zeros((2, 9), dtype=np.float32), np.ones(9, dtype=np.float32))

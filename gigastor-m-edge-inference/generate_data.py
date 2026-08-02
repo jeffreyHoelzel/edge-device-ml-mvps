@@ -51,6 +51,8 @@ def generate_dataset(samples: int = 2_000, sequence_length: int = 12, seed: int 
     """Return labelled incident sequences and each sequence's pre-incident baseline."""
     if samples < len(CAUSES):
         raise ValueError(f"samples must be at least {len(CAUSES)}")
+    if sequence_length < 3:
+        raise ValueError("sequence_length must be at least 3 for recent-window evidence")
     rng = np.random.default_rng(seed)
     features = np.empty((samples, sequence_length, len(FEATURE_NAMES)), dtype=np.float32)
     baselines = np.empty((samples, len(FEATURE_NAMES)), dtype=np.float32)

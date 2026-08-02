@@ -28,6 +28,8 @@ def build_event(model: RootCauseGRU, features: np.ndarray, baseline: np.ndarray,
     """Return a ranked prediction plus baseline-derived, non-model evidence."""
     if features.ndim != 2 or features.shape[1] != len(FEATURE_NAMES):
         raise ValueError(f"features must have shape (windows, {len(FEATURE_NAMES)})")
+    if features.shape[0] < 3:
+        raise ValueError("features must contain at least 3 windows for recent-window evidence")
     if baseline.shape != (len(FEATURE_NAMES),):
         raise ValueError(f"baseline must have shape ({len(FEATURE_NAMES)},)")
     with torch.no_grad():
