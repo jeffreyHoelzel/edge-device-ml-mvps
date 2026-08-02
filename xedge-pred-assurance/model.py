@@ -40,6 +40,7 @@ class TrainingContract:
 class LoadedModel:
     model: "PredictiveAssuranceModel"
     contract: TrainingContract
+    evaluation_metrics: dict[str, float]
 
 
 class PredictiveAssuranceModel(nn.Module):
@@ -74,13 +75,19 @@ class PredictiveAssuranceModel(nn.Module):
         }
 
 
-def save_model(model: PredictiveAssuranceModel, path: Path, contract: TrainingContract) -> None:
+def save_model(
+    model: PredictiveAssuranceModel,
+    path: Path,
+    contract: TrainingContract,
+    evaluation_metrics: dict[str, float] | None = None,
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
         {
             "format_version": CHECKPOINT_FORMAT_VERSION,
             "config": asdict(model.config),
             "contract": asdict(contract),
+            "evaluation_metrics": evaluation_metrics or {},
             "state_dict": model.state_dict(),
         },
         path,
@@ -112,4 +119,7 @@ def load_model(path: Path, device: str = "cpu") -> LoadedModel:
     except (KeyError, TypeError, RuntimeError) as error:
         raise ValueError(f"{path} has an invalid predictive-assurance checkpoint contract") from error
     model.to(device).eval()
-    return LoadedModel(model=model, contract=contract)
+    metrics = checkpoint.get("evaluation_metrics", {})
+    if not isinstance(metrics, dict) or not all(isinstance(value, (int, float)) for value in metrics.values()):
+        raise ValueError(f"{path} has invalid evaluation metrics")
+    return LoadedModel(model=model, contract=contract, evaluation_metrics={key: float(value) for key, value in metrics.items()})
