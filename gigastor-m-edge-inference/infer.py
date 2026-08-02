@@ -32,6 +32,8 @@ def build_event(model: RootCauseGRU, features: np.ndarray, baseline: np.ndarray,
         raise ValueError("features must contain at least 3 windows for recent-window evidence")
     if baseline.shape != (len(FEATURE_NAMES),):
         raise ValueError(f"baseline must have shape ({len(FEATURE_NAMES)},)")
+    if not 1 <= top_k <= len(CAUSES):
+        raise ValueError(f"top_k must be between 1 and {len(CAUSES)}")
     with torch.no_grad():
         cause_logits, severity_logits = model(torch.tensor(features[None], dtype=torch.float32))
         probabilities = torch.softmax(cause_logits[0], dim=0).cpu().numpy()

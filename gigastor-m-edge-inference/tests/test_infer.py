@@ -43,3 +43,10 @@ def test_inference_rejects_short_sequences() -> None:
     model = RootCauseGRU(input_size=9).eval()
     with pytest.raises(ValueError, match="at least 3"):
         build_event(model, np.zeros((2, 9), dtype=np.float32), np.ones(9, dtype=np.float32))
+
+
+@pytest.mark.parametrize("top_k", [0, -1, len(CAUSES) + 1])
+def test_inference_rejects_invalid_ranking_limit(top_k) -> None:
+    dataset = generate_dataset(samples=5, seed=4)
+    with pytest.raises(ValueError, match="top_k"):
+        build_event(RootCauseGRU(input_size=9).eval(), dataset["features"][0], dataset["baselines"][0], top_k=top_k)
