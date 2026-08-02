@@ -10,7 +10,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from contract import FREQUENCY_BINS, TIME_BINS, normalize_per_window
+from contract import FREQUENCY_BINS, INPUT_SHAPE, NORMALIZATION_NAME, TIME_BINS, normalize_per_window
 from model import RFInterferenceCNN
 
 
@@ -91,15 +91,41 @@ def stratified_split_indices(
     return torch.tensor(train_indices, dtype=torch.long), torch.tensor(validation_indices, dtype=torch.long)
 
 
-def evaluate(model: RFInterferenceCNN, loader: DataLoader[tuple[torch.Tensor, ...]], device: torch.device) -> float:
+def evaluate(
+    model: RFInterferenceCNN, loader: DataLoader[tuple[torch.Tensor, ...]], device: torch.device
+) -> dict[str, float | None]:
     model.eval()
-    correct = total = 0
+    class_correct = impact_correct = total = positive_count = 0
+    bounds_absolute_error = 0.0
     with torch.no_grad():
-        for features, classes, _, _ in loader:
+        for features, classes, bounds, impacts in loader:
             output = model(normalize_per_window(features.to(device)))
-            correct += int((output["class_logits"].argmax(dim=1).cpu() == classes).sum())
+            class_predictions = output["class_logits"].argmax(dim=1).cpu()
+            impact_predictions = output["impact_logits"].argmax(dim=1).cpu()
+            class_correct += int((class_predictions == classes).sum())
+            impact_correct += int((impact_predictions == impacts).sum())
+            positive_mask = classes != 0
+            if positive_mask.any():
+                predicted_bounds = output["frequency_bounds"].cpu()[positive_mask]
+                bounds_absolute_error += float(torch.abs(predicted_bounds - bounds[positive_mask]).sum())
+                positive_count += int(positive_mask.sum())
             total += len(classes)
-    return correct / max(total, 1)
+    return {
+        "class_accuracy": class_correct / max(total, 1),
+        "impact_accuracy": impact_correct / max(total, 1),
+        "bounds_mae": bounds_absolute_error / (positive_count * 2) if positive_count else None,
+    }
+
+
+def is_better_metrics(candidate: dict[str, float | None], best: dict[str, float | None] | None) -> bool:
+    """Prefer class accuracy, then lower localization error, retaining the first tie."""
+    if best is None:
+        return True
+    if candidate["class_accuracy"] != best["class_accuracy"]:
+        return candidate["class_accuracy"] > best["class_accuracy"]
+    candidate_mae = float("inf") if candidate["bounds_mae"] is None else candidate["bounds_mae"]
+    best_mae = float("inf") if best["bounds_mae"] is None else best["bounds_mae"]
+    return candidate_mae < best_mae
 
 
 def main() -> None:
@@ -135,6 +161,9 @@ def main() -> None:
     class_loss = nn.CrossEntropyLoss()
     bound_loss = nn.SmoothL1Loss(reduction="none")
     impact_loss = nn.CrossEntropyLoss()
+    best_metrics: dict[str, float | None] | None = None
+    best_epoch = 0
+    best_model_state: dict[str, torch.Tensor] | None = None
 
     for epoch in range(1, args.epochs + 1):
         model.train()
@@ -155,15 +184,31 @@ def main() -> None:
             loss.backward()
             optimizer.step()
             running_loss += float(loss.detach()) * len(batch_classes)
-        validation_accuracy = evaluate(model, validation_loader, device)
-        print(f"epoch {epoch:02d}/{args.epochs}: loss={running_loss / len(train_set):.4f}, val_class_accuracy={validation_accuracy:.3f}")
+        validation_metrics = evaluate(model, validation_loader, device)
+        if is_better_metrics(validation_metrics, best_metrics):
+            best_metrics = validation_metrics
+            best_epoch = epoch
+            best_model_state = {name: value.detach().cpu().clone() for name, value in model.state_dict().items()}
+        bounds_mae = validation_metrics["bounds_mae"]
+        bounds_text = "n/a" if bounds_mae is None else f"{bounds_mae:.4f}"
+        print(
+            f"epoch {epoch:02d}/{args.epochs}: loss={running_loss / len(train_set):.4f}, "
+            f"val_class_accuracy={validation_metrics['class_accuracy']:.3f}, "
+            f"val_impact_accuracy={validation_metrics['impact_accuracy']:.3f}, val_bounds_mae={bounds_text}"
+        )
 
     args.model_output.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
-        {"model_state": model.state_dict(), "input_shape": [1, 64, 128], "normalization": "per_window_zscore"},
+        {
+            "model_state": best_model_state,
+            "input_shape": list(INPUT_SHAPE),
+            "normalization": NORMALIZATION_NAME,
+            "best_epoch": best_epoch,
+            "validation_metrics": best_metrics,
+        },
         args.model_output,
     )
-    print(f"Saved CPU model checkpoint to {args.model_output}")
+    print(f"Saved best CPU model checkpoint from epoch {best_epoch} to {args.model_output}")
 
 
 if __name__ == "__main__":

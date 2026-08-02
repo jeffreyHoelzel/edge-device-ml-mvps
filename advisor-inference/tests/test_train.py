@@ -3,7 +3,7 @@ import pytest
 import torch
 
 from contract import FREQUENCY_BINS, TIME_BINS, normalize_per_window
-from train import load_training_data, positive_float, positive_int, stratified_split_indices
+from train import evaluate, is_better_metrics, load_training_data, positive_float, positive_int, stratified_split_indices
 
 
 def _write_dataset(path, **overrides: np.ndarray) -> None:
@@ -69,3 +69,32 @@ def test_stratified_split_is_seeded_non_overlapping_and_preserves_singletons() -
     assert 8 in train_indices.tolist()
     assert 8 not in validation_indices.tolist()
     assert set(classes[validation_indices].tolist()) == {0, 1}
+
+
+class _FixedOutputModel(torch.nn.Module):
+    def forward(self, features: torch.Tensor) -> dict[str, torch.Tensor]:
+        return {
+            "class_logits": torch.tensor([[3.0, 0.0, 0.0], [0.0, 3.0, 0.0], [0.0, 0.0, 3.0]]),
+            "impact_logits": torch.tensor([[3.0, 0.0, 0.0], [3.0, 0.0, 0.0], [0.0, 0.0, 3.0]]),
+            "frequency_bounds": torch.tensor([[0.7, 0.8], [0.1, 0.4], [0.5, 0.7]]),
+        }
+
+
+def test_evaluate_reports_all_prediction_head_metrics() -> None:
+    features = torch.zeros((3, 1, TIME_BINS, FREQUENCY_BINS))
+    classes = torch.tensor([0, 1, 2])
+    bounds = torch.tensor([[0.0, 0.0], [0.2, 0.4], [0.4, 0.8]])
+    impacts = torch.tensor([0, 1, 2])
+    loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(features, classes, bounds, impacts), batch_size=3)
+    metrics = evaluate(_FixedOutputModel(), loader, torch.device("cpu"))
+    assert metrics["class_accuracy"] == 1.0
+    assert metrics["impact_accuracy"] == pytest.approx(2 / 3)
+    assert metrics["bounds_mae"] == pytest.approx(0.075)
+
+
+def test_metric_selection_prefers_class_accuracy_then_bound_error() -> None:
+    first = {"class_accuracy": 0.8, "impact_accuracy": 0.5, "bounds_mae": 0.2}
+    assert is_better_metrics(first, None)
+    assert is_better_metrics({"class_accuracy": 0.9, "impact_accuracy": 0.1, "bounds_mae": 0.9}, first)
+    assert is_better_metrics({"class_accuracy": 0.8, "impact_accuracy": 0.1, "bounds_mae": 0.1}, first)
+    assert not is_better_metrics({"class_accuracy": 0.8, "impact_accuracy": 0.9, "bounds_mae": 0.2}, first)
