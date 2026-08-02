@@ -69,9 +69,24 @@ def confidence_threshold(value: str) -> float:
     return parsed
 
 
+def validate_frequency_span(start_hz: float | None, stop_hz: float | None) -> tuple[float, float] | None:
+    """Validate an optional physical span that maps normalized bounds to Hz."""
+    if start_hz is None and stop_hz is None:
+        return None
+    if start_hz is None or stop_hz is None:
+        raise ValueError("--frequency-start-hz and --frequency-stop-hz must be supplied together")
+    if not np.isfinite(start_hz) or not np.isfinite(stop_hz) or start_hz < 0 or stop_hz <= start_hz:
+        raise ValueError("frequency span must be finite, non-negative, and have stop greater than start")
+    return start_hz, stop_hz
+
+
 def build_result(
-    probabilities: torch.Tensor, impact_logits: torch.Tensor, frequency_bounds: torch.Tensor, threshold: float
-) -> dict[str, str | float]:
+    probabilities: torch.Tensor,
+    impact_logits: torch.Tensor,
+    frequency_bounds: torch.Tensor,
+    threshold: float,
+    frequency_span_hz: tuple[float, float] | None = None,
+) -> dict[str, str | float | None]:
     """Format one prediction while making low-confidence decisions explicit."""
     class_id = int(probabilities.argmax())
     confidence = float(probabilities[class_id])
@@ -85,7 +100,7 @@ def build_result(
     if status != "detected":
         bounds = [0.0, 0.0]
         impact_id = 0
-    return {
+    result: dict[str, str | float | None] = {
         "event_type": "rf_interference",
         "class": CLASS_NAMES[class_id],
         "confidence": round(confidence, 4),
@@ -94,7 +109,15 @@ def build_result(
         "estimated_service_impact": IMPACT_NAMES[impact_id],
         "detection_status": status,
         "confidence_threshold": round(threshold, 4),
+        "frequency_start_hz": None,
+        "frequency_stop_hz": None,
     }
+    if status == "detected" and frequency_span_hz is not None:
+        span_start, span_stop = frequency_span_hz
+        span_width = span_stop - span_start
+        result["frequency_start_hz"] = round(span_start + float(bounds[0]) * span_width, 4)
+        result["frequency_stop_hz"] = round(span_start + float(bounds[1]) * span_width, 4)
+    return result
 
 
 def main() -> None:
@@ -102,14 +125,24 @@ def main() -> None:
     parser.add_argument("spectrogram", type=Path)
     parser.add_argument("--model", type=Path, default=Path("artifacts/rf_interference_cnn.pt"))
     parser.add_argument("--confidence-threshold", type=confidence_threshold, default=DEFAULT_CONFIDENCE_THRESHOLD)
+    parser.add_argument("--frequency-start-hz", type=float)
+    parser.add_argument("--frequency-stop-hz", type=float)
     args = parser.parse_args()
+    try:
+        frequency_span_hz = validate_frequency_span(args.frequency_start_hz, args.frequency_stop_hz)
+    except ValueError as error:
+        parser.error(str(error))
 
     model = load_model(args.model)
     with torch.no_grad():
         output = model(normalize_per_window(load_spectrogram(args.spectrogram)))
         probabilities = torch.softmax(output["class_logits"], dim=1)[0]
         result = build_result(
-            probabilities, output["impact_logits"][0], output["frequency_bounds"][0], args.confidence_threshold
+            probabilities,
+            output["impact_logits"][0],
+            output["frequency_bounds"][0],
+            args.confidence_threshold,
+            frequency_span_hz,
         )
     print(json.dumps(result, indent=2))
 
