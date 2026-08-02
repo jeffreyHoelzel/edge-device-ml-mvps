@@ -45,11 +45,24 @@ def _generate_trajectory(
 ) -> np.ndarray:
     """Return one raw KPI trajectory with an optional degradation ramp."""
     time = np.arange(length, dtype=np.float32)
-    daily_wobble = np.sin(time / 5.0)[:, None]
+    phase = rng.uniform(0.0, 2.0 * np.pi)
+    daily_wobble = np.sin(time / 5.0 + phase)[:, None]
     baseline = np.array([35.0, 4.0, 0.1, 35.0, 80.0, 82.0, 1.0], dtype=np.float32)
+    profile_offset = rng.normal(
+        0.0,
+        np.array([5.0, 1.2, 0.03, 5.0, 10.0, 5.0, 0.8], dtype=np.float32),
+    ).astype(np.float32)
     noise = np.array([3.0, 0.8, 0.04, 2.0, 4.0, 2.0, 0.5], dtype=np.float32)
-    values = baseline + daily_wobble * np.array([1.5, 0.4, 0.01, 1.0, 1.5, 1.0, 0.1])
+    values = baseline + profile_offset + daily_wobble * np.array(
+        [1.5, 0.4, 0.01, 1.0, 1.5, 1.0, 0.1], dtype=np.float32
+    )
     values += rng.normal(0.0, noise, size=(length, len(FEATURE_NAMES))).astype(np.float32)
+
+    # Benign bursts make normal traffic less separable from incident windows.
+    benign_bursts = rng.random(length) < 0.04
+    values[benign_bursts, 0] += rng.uniform(5.0, 14.0, size=benign_bursts.sum())
+    values[benign_bursts, 1] += rng.uniform(1.0, 4.0, size=benign_bursts.sum())
+    values[benign_bursts, 6] += rng.uniform(1.0, 3.0, size=benign_bursts.sum())
 
     if cause_id is not None:
         start = degradation_start
