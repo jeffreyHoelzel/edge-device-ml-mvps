@@ -2,11 +2,15 @@ import json
 
 import pytest
 
-from stream_demo import forecast_event
+from model import TrainingContract
+from streaming import forecast_event
+
+
+CONTRACT = TrainingContract(("a",) * 7, (0.0,) * 7, (1.0,) * 7, ("rf_interference", "congestion", "backhaul_degradation", "device_fault"), ("minor", "major", "critical"), 2, 5, 60)
 
 
 def test_forecast_event_json_schema() -> None:
-    event = json.loads(json.dumps(forecast_event(0.88, 0, 1)))
+    event = json.loads(json.dumps(forecast_event(0.88, 0, 1, CONTRACT, cause_confidence=1.0, severity_confidence=1.0)))
 
     assert set(event) == {
         "event_type",
@@ -32,7 +36,7 @@ def test_forecast_event_json_schema() -> None:
 
 
 def test_forecast_event_marks_low_probability_as_not_alerting() -> None:
-    event = forecast_event(0.69, 0, 1, incident_threshold=0.70)
+    event = forecast_event(0.69, 0, 1, CONTRACT, cause_confidence=1.0, severity_confidence=1.0)
 
     assert event["meets_alert_threshold"] is False
 
@@ -40,4 +44,4 @@ def test_forecast_event_marks_low_probability_as_not_alerting() -> None:
 @pytest.mark.parametrize("probability", (-0.1, 1.1))
 def test_forecast_event_rejects_invalid_probability(probability: float) -> None:
     with pytest.raises(ValueError, match="probability"):
-        forecast_event(probability, 0, 1)
+        forecast_event(probability, 0, 1, CONTRACT, cause_confidence=1.0, severity_confidence=1.0)
