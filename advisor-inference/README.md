@@ -1,6 +1,6 @@
 # RF Interference Intelligence MVP
 
-A compact, CPU-only demonstration of a complete RF-interference data-to-insight pipeline. It produces randomized synthetic spectrogram windows, trains a small 2D PyTorch CNN, localizes the affected frequency range, and emits an inference JSON record.
+A compact, CPU-only demonstration of a complete RF-interference data-to-insight pipeline. It produces randomized synthetic spectrogram windows, trains a small 2D PyTorch CNN, localizes the affected frequency range, and emits an inference JSON record. It is a synthetic-data MVP, not a validated production RF detector.
 
 The five supported classes are `no_interference`, `narrowband_continuous`, `wideband_intermittent`, `periodic_impulsive`, and `adjacent_channel_leakage`. Every non-empty class randomizes frequency position, bandwidth, amplitude, duration, duty cycle, and noise floor. The CNN has three output heads: class, normalized start/stop frequency, and low/moderate/high estimated service impact.
 
@@ -27,12 +27,15 @@ uv run --directory advisor-inference python visualize_sample.py --input data/exa
 uv run --directory advisor-inference python train.py --data data/train.npz --epochs 18 --model-output artifacts/rf_interference_cnn.pt
 ```
 
-The checkpoint contains the model state and is saved as a CPU-compatible PyTorch `.pt` file.
+The checkpoint contains CPU-compatible model weights plus versioned input, label, normalization, seed, and validation-metric metadata. Training reports class accuracy, impact accuracy, and positive-window frequency-bound MAE, and saves the best validation epoch.
 
 ## Run inference
 
 ```bash
 uv run --directory advisor-inference python infer.py data/example_spectrogram.npy --model artifacts/rf_interference_cnn.pt
+
+# Supply the span of the input window to add physical Hz bounds.
+uv run --directory advisor-inference python infer.py data/example_spectrogram.npy --model artifacts/rf_interference_cnn.pt --frequency-start-hz 3500000000 --frequency-stop-hz 3600000000
 ```
 
 Example output shape:
@@ -44,11 +47,21 @@ Example output shape:
   "confidence": 0.93,
   "frequency_start_normalized": 0.42,
   "frequency_stop_normalized": 0.58,
-  "estimated_service_impact": "moderate"
+  "estimated_service_impact": "moderate",
+  "detection_status": "detected",
+  "confidence_threshold": 0.6,
+  "frequency_start_hz": null,
+  "frequency_stop_hz": null
 }
 ```
 
-Frequency values are normalized to the `[0, 1]` span of the input window. For `no_interference`, both bounds are emitted as `0.0` and impact is `low`.
+Frequency values are normalized to the `[0, 1]` span of the input window. Supplying both frequency-span options adds physical Hz bounds. The default confidence threshold is `0.60`; a lower-confidence non-empty class is emitted with `detection_status: "abstained"`, empty bounds, and `low` impact. For `no_interference`, status is `no_interference`, both bounds are `0.0`, and impact is `low`.
+
+## MVP boundaries and real-data requirements
+
+The generator is intentionally limited to isolated synthetic patterns. It does not model mixed or overlapping interference, receiver artifacts, changing gain, frequency drift, propagation effects, or out-of-distribution signals. The reported validation metrics measure only a held-out split of this synthetic distribution.
+
+Before using this workflow beyond a demo, collect representative RF captures with the frequency span, sample rate and FFT configuration, receiver/gain characteristics, and ground-truth interference class, frequency bounds, and service impact. Evaluate separately on held-out real captures—including mixed and unseen conditions—and define deployment acceptance thresholds for class accuracy, localization error, impact accuracy, calibration, and abstention behavior.
 
 ## Test
 
