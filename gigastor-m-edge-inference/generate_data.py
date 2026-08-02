@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -87,6 +88,13 @@ def generate_dataset(samples: int = 2_000, sequence_length: int = 12, seed: int 
         "feature_names": np.asarray(FEATURE_NAMES),
         "cause_names": np.asarray(CAUSES),
         "severity_names": np.asarray(SEVERITIES),
+        "flow_ids": np.asarray([f"synthetic-flow-{index:06d}" for index in range(samples)]),
+        "device_ids": np.asarray(["synthetic-edge-01"] * samples),
+        "interfaces": np.asarray(["eth0"] * samples),
+        "window_ends": np.asarray([
+            (datetime(2026, 1, 1, tzinfo=UTC) + timedelta(minutes=index)).isoformat().replace("+00:00", "Z")
+            for index in range(samples)
+        ]),
     }
 
 

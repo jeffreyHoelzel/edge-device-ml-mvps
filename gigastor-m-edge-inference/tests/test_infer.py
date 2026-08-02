@@ -3,7 +3,7 @@ import pytest
 import torch
 
 from generate_data import CAUSES, SEVERITIES, generate_dataset
-from infer import build_event
+from infer import build_event, load_record_with_context
 from model import RootCauseGRU, load_checkpoint, save_checkpoint
 from stream_demo import validate_event_count
 from data_contract import validate_dataset
@@ -115,3 +115,11 @@ def test_generator_includes_deterministic_normal_traffic() -> None:
     second = generate_dataset(samples=12, seed=8)
     assert np.array_equal(first["incident"], second["incident"])
     assert first["incident"].sum() == 10
+
+
+def test_generated_records_have_context(tmp_path) -> None:
+    dataset = generate_dataset(samples=6)
+    path = tmp_path / "flows.npz"
+    np.savez(path, **dataset)
+    _, _, context = load_record_with_context(path, 0)
+    assert context == {"flow_id": "synthetic-flow-000000", "device_id": "synthetic-edge-01", "interface": "eth0", "window_end": "2026-01-01T00:00:00Z"}

@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
-from infer import build_event, load_record
+from infer import build_event, load_record_with_context
 from model import load_checkpoint
 from data_contract import load_dataset
 
@@ -30,8 +30,8 @@ def main() -> None:
     model = load_checkpoint(args.model)
     validate_event_count(args.events, len(load_dataset(args.data)["features"]))
     for index in range(args.events):
-        features, baseline = load_record(args.data, index)
-        print(json.dumps(build_event(model, features, baseline, incident_threshold=args.incident_threshold, root_cause_threshold=args.root_cause_threshold), separators=(",", ":")))
+        features, baseline, context = load_record_with_context(args.data, index)
+        print(json.dumps(build_event(model, features, baseline, incident_threshold=args.incident_threshold, root_cause_threshold=args.root_cause_threshold, context=context), separators=(",", ":")))
 
 
 if __name__ == "__main__":

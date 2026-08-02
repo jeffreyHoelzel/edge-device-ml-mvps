@@ -27,7 +27,7 @@ def _comparison(recent: float, baseline: float, stable_word: str = "normal") -> 
 
 def build_event(
     model: RootCauseGRU, features: np.ndarray, baseline: np.ndarray, top_k: int = 5, incident_threshold: float = 0.5,
-    root_cause_threshold: float = 0.4,
+    root_cause_threshold: float = 0.4, context: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Return a ranked prediction plus baseline-derived, non-model evidence."""
     if features.ndim != 2 or features.shape[1] != len(FEATURE_NAMES):
@@ -64,7 +64,7 @@ def build_event(
         "interface_utilization": _comparison(observed["interface_utilization"], reference["interface_utilization"]),
     }
     detected = incident_probability >= incident_threshold
-    return {
+    event = {
         "schema_version": "1.1",
         "event_type": "application_performance_incident" if detected else "application_performance_status",
         "incident_detected": detected,
@@ -79,6 +79,9 @@ def build_event(
         ] if detected else [],
         "evidence": evidence,
     }
+    if context is not None:
+        event["context"] = context
+    return event
 
 
 def load_record(data_path: Path, index: int) -> tuple[np.ndarray, np.ndarray]:
@@ -86,6 +89,19 @@ def load_record(data_path: Path, index: int) -> tuple[np.ndarray, np.ndarray]:
     if not 0 <= index < len(data["features"]):
         raise IndexError(f"index must be between 0 and {len(data['features']) - 1}")
     return data["features"][index], data["baselines"][index]
+
+
+def load_record_with_context(data_path: Path, index: int) -> tuple[np.ndarray, np.ndarray, dict[str, str]]:
+    data = load_dataset(data_path)
+    if not 0 <= index < len(data["features"]):
+        raise IndexError(f"index must be between 0 and {len(data['features']) - 1}")
+    context = {
+        "flow_id": str(data["flow_ids"][index]),
+        "device_id": str(data["device_ids"][index]),
+        "interface": str(data["interfaces"][index]),
+        "window_end": str(data["window_ends"][index]),
+    }
+    return data["features"][index], data["baselines"][index], context
 
 
 def main() -> None:
@@ -97,8 +113,8 @@ def main() -> None:
     parser.add_argument("--incident-threshold", type=float, default=0.5)
     parser.add_argument("--root-cause-threshold", type=float, default=0.4)
     args = parser.parse_args()
-    features, baseline = load_record(args.data, args.index)
-    print(json.dumps(build_event(load_checkpoint(args.model), features, baseline, args.top_k, args.incident_threshold, args.root_cause_threshold), indent=2))
+    features, baseline, context = load_record_with_context(args.data, args.index)
+    print(json.dumps(build_event(load_checkpoint(args.model), features, baseline, args.top_k, args.incident_threshold, args.root_cause_threshold, context), indent=2))
 
 
 if __name__ == "__main__":

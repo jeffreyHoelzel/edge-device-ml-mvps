@@ -11,6 +11,7 @@ from generate_data import CAUSES, FEATURE_NAMES, SEVERITIES
 
 REQUIRED_FIELDS = (
     "features", "baselines", "causes", "severity", "incident", "feature_names", "cause_names", "severity_names",
+    "flow_ids", "device_ids", "interfaces", "window_ends",
 )
 
 
@@ -28,6 +29,8 @@ def validate_dataset(data: Mapping[str, np.ndarray]) -> dict[str, np.ndarray]:
         raise ValueError(f"baselines must have shape ({samples}, {len(FEATURE_NAMES)})")
     if any(result[field].shape != (samples,) for field in ("causes", "severity", "incident")):
         raise ValueError("causes, severity, and incident must each have one value per sample")
+    if any(result[field].shape != (samples,) for field in ("flow_ids", "device_ids", "interfaces", "window_ends")):
+        raise ValueError("context fields must each have one value per sample")
     if not np.isfinite(features).all() or not np.isfinite(baselines).all():
         raise ValueError("features and baselines must contain only finite values")
     if tuple(result["feature_names"].tolist()) != FEATURE_NAMES:
