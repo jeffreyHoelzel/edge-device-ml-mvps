@@ -70,6 +70,27 @@ def load_training_data(path: Path) -> tuple[torch.Tensor, torch.Tensor, torch.Te
     )
 
 
+def stratified_split_indices(
+    classes: torch.Tensor, seed: int, validation_fraction: float = 0.2
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Create a deterministic split while retaining singleton classes in training."""
+    if not 0.0 < validation_fraction < 1.0:
+        raise ValueError("validation_fraction must be between 0 and 1")
+    rng = np.random.default_rng(seed)
+    labels = classes.detach().cpu().numpy()
+    train_indices: list[int] = []
+    validation_indices: list[int] = []
+    for class_id in np.unique(labels):
+        indices = np.flatnonzero(labels == class_id)
+        rng.shuffle(indices)
+        validation_count = 0 if len(indices) == 1 else min(len(indices) - 1, max(1, int(len(indices) * validation_fraction)))
+        validation_indices.extend(indices[:validation_count].tolist())
+        train_indices.extend(indices[validation_count:].tolist())
+    rng.shuffle(train_indices)
+    rng.shuffle(validation_indices)
+    return torch.tensor(train_indices, dtype=torch.long), torch.tensor(validation_indices, dtype=torch.long)
+
+
 def evaluate(model: RFInterferenceCNN, loader: DataLoader[tuple[torch.Tensor, ...]], device: torch.device) -> float:
     model.eval()
     correct = total = 0
@@ -94,10 +115,19 @@ def main() -> None:
     torch.manual_seed(args.seed)
     device = torch.device("cpu")
     features, classes, bounds, impacts = load_training_data(args.data)
-    split = max(1, int(len(features) * 0.8))
-    train_set = TensorDataset(features[:split], classes[:split], bounds[:split], impacts[:split])
-    validation_set = TensorDataset(features[split:], classes[split:], bounds[split:], impacts[split:])
-    train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True)
+    train_indices, validation_indices = stratified_split_indices(classes, args.seed)
+    singleton_ids = sorted(int(class_id) for class_id in torch.unique(classes) if int((classes == class_id).sum()) == 1)
+    if singleton_ids:
+        singleton_names = ", ".join(str(class_id) for class_id in singleton_ids)
+        print(f"validation note: singleton class IDs remain training-only: {singleton_names}")
+    train_set = TensorDataset(
+        features[train_indices], classes[train_indices], bounds[train_indices], impacts[train_indices]
+    )
+    validation_set = TensorDataset(
+        features[validation_indices], classes[validation_indices], bounds[validation_indices], impacts[validation_indices]
+    )
+    loader_generator = torch.Generator().manual_seed(args.seed)
+    train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True, generator=loader_generator)
     validation_loader = DataLoader(validation_set, batch_size=args.batch_size)
 
     model = RFInterferenceCNN().to(device)
