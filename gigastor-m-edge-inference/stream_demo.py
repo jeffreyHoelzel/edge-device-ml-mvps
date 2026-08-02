@@ -24,12 +24,13 @@ def main() -> None:
     parser.add_argument("--model", type=Path, default=Path("artifacts/observer_gru.pt"))
     parser.add_argument("--data", type=Path, default=Path("data/synthetic_flows.npz"))
     parser.add_argument("--events", type=int, default=5)
+    parser.add_argument("--incident-threshold", type=float, default=0.5)
     args = parser.parse_args()
     model = load_checkpoint(args.model)
     validate_event_count(args.events, len(load_dataset(args.data)["features"]))
     for index in range(args.events):
         features, baseline = load_record(args.data, index)
-        print(json.dumps(build_event(model, features, baseline), separators=(",", ":")))
+        print(json.dumps(build_event(model, features, baseline, incident_threshold=args.incident_threshold), separators=(",", ":")))
 
 
 if __name__ == "__main__":

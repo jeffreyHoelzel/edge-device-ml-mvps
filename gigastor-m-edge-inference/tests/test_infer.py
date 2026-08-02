@@ -14,11 +14,15 @@ def test_root_cause_probabilities_are_ranked_and_sum_to_one() -> None:
     dataset = generate_dataset(samples=12, sequence_length=8, seed=3)
     model = RootCauseGRU(input_size=dataset["features"].shape[-1])
     model.set_normalization(torch.tensor(dataset["features"].mean(axis=(0, 1))), torch.tensor(dataset["features"].std(axis=(0, 1))))
+    with torch.no_grad():
+        model.incident_head.weight.zero_()
+        model.incident_head.bias[:] = torch.tensor([0.0, 10.0])
     event = build_event(model.eval(), dataset["features"][0], dataset["baselines"][0])
     ranking = event["root_cause_ranking"]
     probabilities = [item["probability"] for item in ranking]
 
     assert event["severity"] in SEVERITIES
+    assert event["incident_detected"] is True
     assert len(ranking) == len(CAUSES)
     assert sum(probabilities) == pytest.approx(1.0, abs=3e-6)
     assert probabilities == sorted(probabilities, reverse=True)
@@ -39,6 +43,19 @@ def test_model_exposes_binary_incident_head() -> None:
     model = RootCauseGRU(input_size=9)
     _, _, incident_logits = model(torch.rand(2, 3, 9))
     assert incident_logits.shape == (2, 2)
+
+
+@pytest.mark.parametrize(("bias", "detected"), [((-10.0, 10.0), True), ((10.0, -10.0), False)])
+def test_event_uses_incident_gate(bias, detected) -> None:
+    dataset = generate_dataset(samples=6)
+    model = RootCauseGRU(input_size=9).eval()
+    with torch.no_grad():
+        model.incident_head.weight.zero_()
+        model.incident_head.bias[:] = torch.tensor(bias)
+    event = build_event(model, dataset["features"][0], dataset["baselines"][0])
+    assert event["incident_detected"] is detected
+    assert event["event_type"] == ("application_performance_incident" if detected else "application_performance_status")
+    assert event["root_cause_ranking"] or not detected
 
 
 @pytest.mark.parametrize("sequence_length", [0, 1, 2])
