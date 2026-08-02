@@ -84,6 +84,16 @@ PYTHONPATH=xedge-pred-assurance uv run pytest xedge-pred-assurance/tests
 
 ## Contribution guidelines
 
+- Always develop changes in a Git worktree under `worktrees/`; keep the main
+  checkout clean and use it only for coordination and inspection. Create a
+  branch worktree before editing, for example:
+
+  ```bash
+  git worktree add worktrees/<topic> -b <branch-name>
+  ```
+
+  Run development commands and tests from that worktree. Do not make code or
+  documentation changes directly in the main checkout.
 - Keep Python source files below 1,000 lines; split cohesive functionality into
   focused modules before reaching that limit.
 - Preserve CPU-only execution. Load checkpoints with CPU-compatible settings and
