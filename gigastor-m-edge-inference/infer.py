@@ -26,7 +26,8 @@ def _comparison(recent: float, baseline: float, stable_word: str = "normal") -> 
 
 
 def build_event(
-    model: RootCauseGRU, features: np.ndarray, baseline: np.ndarray, top_k: int = 5, incident_threshold: float = 0.5
+    model: RootCauseGRU, features: np.ndarray, baseline: np.ndarray, top_k: int = 5, incident_threshold: float = 0.5,
+    root_cause_threshold: float = 0.4,
 ) -> dict[str, Any]:
     """Return a ranked prediction plus baseline-derived, non-model evidence."""
     if features.ndim != 2 or features.shape[1] != len(FEATURE_NAMES):
@@ -41,11 +42,14 @@ def build_event(
         raise ValueError(f"top_k must be between 1 and {len(cause_names)}")
     if not 0.0 <= incident_threshold <= 1.0:
         raise ValueError("incident_threshold must be between 0 and 1")
+    if not 0.0 <= root_cause_threshold <= 1.0:
+        raise ValueError("root_cause_threshold must be between 0 and 1")
     with torch.no_grad():
         cause_logits, severity_logits, incident_logits = model(torch.tensor(features[None], dtype=torch.float32))
         probabilities = torch.softmax(cause_logits[0], dim=0).cpu().numpy()
         severity = severity_names[int(severity_logits[0].argmax())]
         incident_probability = float(torch.softmax(incident_logits[0], dim=0)[1])
+        severity_probability = float(torch.softmax(severity_logits[0], dim=0).max())
     ordered = np.argsort(probabilities)[::-1][:top_k]
     recent = features[-3:].mean(axis=0)  # a fixed, explicit recent-measurement window
     observed = dict(zip(FEATURE_NAMES, recent, strict=True))
@@ -65,6 +69,10 @@ def build_event(
         "event_type": "application_performance_incident" if detected else "application_performance_status",
         "incident_detected": detected,
         "incident_probability": round(incident_probability, 6),
+        "root_cause_confidence": round(float(probabilities.max()), 6),
+        "root_cause_status": "confident" if probabilities.max() >= root_cause_threshold else "uncertain",
+        "severity_probability": round(severity_probability, 6),
+        "root_cause_probability_mass": round(float(probabilities[ordered].sum()), 6) if detected else 0.0,
         "severity": severity if detected else "none",
         "root_cause_ranking": [
             {"cause": cause_names[int(index)], "probability": round(float(probabilities[index]), 6)} for index in ordered
@@ -87,9 +95,10 @@ def main() -> None:
     parser.add_argument("--index", type=int, default=0, help="record index in the NPZ data set")
     parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument("--incident-threshold", type=float, default=0.5)
+    parser.add_argument("--root-cause-threshold", type=float, default=0.4)
     args = parser.parse_args()
     features, baseline = load_record(args.data, args.index)
-    print(json.dumps(build_event(load_checkpoint(args.model), features, baseline, args.top_k, args.incident_threshold), indent=2))
+    print(json.dumps(build_event(load_checkpoint(args.model), features, baseline, args.top_k, args.incident_threshold, args.root_cause_threshold), indent=2))
 
 
 if __name__ == "__main__":

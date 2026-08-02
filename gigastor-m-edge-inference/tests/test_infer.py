@@ -26,6 +26,8 @@ def test_root_cause_probabilities_are_ranked_and_sum_to_one() -> None:
     assert len(ranking) == len(CAUSES)
     assert sum(probabilities) == pytest.approx(1.0, abs=3e-6)
     assert probabilities == sorted(probabilities, reverse=True)
+    assert event["root_cause_probability_mass"] == pytest.approx(sum(probabilities), abs=3e-6)
+    assert 0.0 <= event["severity_probability"] <= 1.0
 
 
 def test_checkpoint_can_be_saved_and_reloaded(tmp_path) -> None:
