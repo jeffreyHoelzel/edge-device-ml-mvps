@@ -114,6 +114,27 @@ def load_record_with_context(data_path: Path, index: int) -> tuple[np.ndarray, n
     return data["features"][index], data["baselines"][index], context
 
 
+def load_jsonl_records(path: Path) -> list[tuple[np.ndarray, np.ndarray, dict[str, str]]]:
+    """Load externally supplied rolling flow records from a JSONL file."""
+    records = []
+    for line_number, line in enumerate(path.read_text().splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            value = json.loads(line)
+            features = np.asarray(value["features"], dtype=np.float32)
+            baseline = np.asarray(value["baseline"], dtype=np.float32)
+            context = {str(key): str(item) for key, item in value.get("context", {}).items()}
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
+            raise ValueError(f"invalid JSONL record on line {line_number}: {error}") from error
+        if not np.isfinite(features).all() or not np.isfinite(baseline).all():
+            raise ValueError(f"invalid JSONL record on line {line_number}: values must be finite")
+        records.append((features, baseline, context))
+    if not records:
+        raise ValueError("JSONL input must contain at least one record")
+    return records
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", type=Path, default=Path("artifacts/observer_gru.pt"))

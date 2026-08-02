@@ -1,9 +1,11 @@
+import json
+
 import numpy as np
 import pytest
 import torch
 
 from generate_data import CAUSES, SEVERITIES, generate_dataset
-from infer import build_event, load_record_with_context
+from infer import build_event, load_jsonl_records, load_record_with_context
 from model import RootCauseGRU, load_checkpoint, save_checkpoint
 from stream_demo import validate_event_count
 from data_contract import validate_dataset
@@ -125,3 +127,13 @@ def test_generated_records_have_context(tmp_path) -> None:
     np.savez(path, **dataset)
     _, _, context = load_record_with_context(path, 0)
     assert context == {"flow_id": "synthetic-flow-000000", "device_id": "synthetic-edge-01", "interface": "eth0", "window_end": "2026-01-01T00:00:00Z"}
+
+
+def test_jsonl_record_loader_validates_external_input(tmp_path) -> None:
+    dataset = generate_dataset(samples=6)
+    path = tmp_path / "records.jsonl"
+    path.write_text(json.dumps({"features": dataset["features"][0].tolist(), "baseline": dataset["baselines"][0].tolist(), "context": {"flow_id": "external-1"}}) + "\n")
+    features, baseline, context = load_jsonl_records(path)[0]
+    assert features.shape == (12, 9)
+    assert baseline.shape == (9,)
+    assert context["flow_id"] == "external-1"
