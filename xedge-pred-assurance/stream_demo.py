@@ -14,7 +14,16 @@ from generate_data import CAUSE_NAMES, SEVERITY_NAMES, generate_sequence
 from model import load_model
 
 
-def forecast_event(probability: float, cause_index: int, severity_index: int, horizon_seconds: int = 60) -> dict[str, object]:
+def forecast_event(
+    probability: float,
+    cause_index: int,
+    severity_index: int,
+    horizon_seconds: int = 60,
+    incident_threshold: float = 0.70,
+    cause_confidence: float = 1.0,
+    severity_confidence: float = 1.0,
+    model_version: str = "predictive-assurance-v3",
+) -> dict[str, object]:
     """Format one stable, JSON-serializable forecast event."""
     if not 0.0 <= probability <= 1.0:
         raise ValueError("probability must be between 0 and 1")
@@ -24,12 +33,23 @@ def forecast_event(probability: float, cause_index: int, severity_index: int, ho
         raise ValueError("severity_index is out of range")
     if horizon_seconds < 1:
         raise ValueError("horizon_seconds must be positive")
+    if not 0.0 < incident_threshold < 1.0:
+        raise ValueError("incident_threshold must be between 0 and 1")
+    if not 0.0 <= cause_confidence <= 1.0 or not 0.0 <= severity_confidence <= 1.0:
+        raise ValueError("diagnosis confidences must be between 0 and 1")
+    if not model_version:
+        raise ValueError("model_version must not be empty")
     return {
         "event_type": "sla_violation_forecast",
         "probability": round(float(probability), 4),
         "forecast_horizon_seconds": int(horizon_seconds),
         "likely_cause": CAUSE_NAMES[cause_index],
         "severity": SEVERITY_NAMES[severity_index],
+        "incident_threshold": round(float(incident_threshold), 4),
+        "meets_alert_threshold": bool(probability >= incident_threshold),
+        "cause_confidence": round(float(cause_confidence), 4),
+        "severity_confidence": round(float(severity_confidence), 4),
+        "model_version": model_version,
     }
 
 
@@ -65,7 +85,23 @@ def main() -> None:
             probability = torch.sigmoid(output["incident_logits"])[0].item()
             cause = int(output["cause_logits"].argmax(dim=1)[0])
             severity = int(output["severity_logits"].argmax(dim=1)[0])
-        print(json.dumps(forecast_event(probability, cause, severity, contract.forecast_horizon_seconds), sort_keys=True))
+            cause_confidence = torch.softmax(output["cause_logits"], dim=1).max(dim=1).values[0].item()
+            severity_confidence = torch.softmax(output["severity_logits"], dim=1).max(dim=1).values[0].item()
+        print(
+            json.dumps(
+                forecast_event(
+                    probability,
+                    cause,
+                    severity,
+                    contract.forecast_horizon_seconds,
+                    contract.incident_threshold,
+                    cause_confidence,
+                    severity_confidence,
+                    contract.model_version,
+                ),
+                sort_keys=True,
+            )
+        )
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ import torch
 from torch import nn
 
 
-CHECKPOINT_FORMAT_VERSION = 2
+CHECKPOINT_FORMAT_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -33,7 +33,8 @@ class TrainingContract:
     sequence_length: int
     sample_interval_seconds: int
     forecast_horizon_seconds: int
-    model_version: str = "predictive-assurance-v2"
+    incident_threshold: float = 0.70
+    model_version: str = "predictive-assurance-v3"
 
 
 @dataclass(frozen=True)
@@ -112,6 +113,7 @@ def load_model(path: Path, device: str = "cpu") -> LoadedModel:
             sequence_length=contract_values["sequence_length"],
             sample_interval_seconds=contract_values["sample_interval_seconds"],
             forecast_horizon_seconds=contract_values["forecast_horizon_seconds"],
+            incident_threshold=contract_values["incident_threshold"],
             model_version=contract_values["model_version"],
         )
         model = PredictiveAssuranceModel(config)

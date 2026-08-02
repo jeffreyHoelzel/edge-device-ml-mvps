@@ -237,6 +237,7 @@ def main() -> None:
         sequence_length=data["x"].shape[1],
         sample_interval_seconds=SAMPLE_INTERVAL_SECONDS,
         forecast_horizon_seconds=FORECAST_HORIZON_SECONDS,
+        incident_threshold=ALERT_THRESHOLD,
     )
     save_model(model, args.output, contract, evaluation_metrics=asdict(metrics))
     print(f"Saved CPU model to {args.output}")

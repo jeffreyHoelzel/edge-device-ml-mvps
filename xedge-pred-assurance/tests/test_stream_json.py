@@ -14,12 +14,27 @@ def test_forecast_event_json_schema() -> None:
         "forecast_horizon_seconds",
         "likely_cause",
         "severity",
+        "incident_threshold",
+        "meets_alert_threshold",
+        "cause_confidence",
+        "severity_confidence",
+        "model_version",
     }
     assert event["event_type"] == "sla_violation_forecast"
     assert event["probability"] == 0.88
     assert event["forecast_horizon_seconds"] == 60
     assert event["likely_cause"] == "rf_interference"
     assert event["severity"] == "major"
+    assert event["incident_threshold"] == 0.7
+    assert event["meets_alert_threshold"] is True
+    assert event["cause_confidence"] == 1.0
+    assert event["severity_confidence"] == 1.0
+
+
+def test_forecast_event_marks_low_probability_as_not_alerting() -> None:
+    event = forecast_event(0.69, 0, 1, incident_threshold=0.70)
+
+    assert event["meets_alert_threshold"] is False
 
 
 @pytest.mark.parametrize("probability", (-0.1, 1.1))
