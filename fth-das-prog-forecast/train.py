@@ -9,6 +9,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
+from checkpoint import create_checkpoint
 from generate_data import DEFAULT_HORIZON_SECONDS, MAX_SPEED_M_PER_MIN, SyntheticDASDataset
 from model import DASRiskModel
 
@@ -63,7 +64,7 @@ def main() -> None:
         print(f"epoch={epoch:02d} loss={total_loss / len(loader.dataset):.4f}")
 
     args.model_path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save({"model_state": model.state_dict(), "model_config": {"spatial_channels": 16, "hidden_size": 32}}, args.model_path)
+    torch.save(create_checkpoint(model, seed=args.seed, horizon_seconds=args.horizon_seconds), args.model_path)
     print(f"saved CPU checkpoint to {args.model_path}")
 
 

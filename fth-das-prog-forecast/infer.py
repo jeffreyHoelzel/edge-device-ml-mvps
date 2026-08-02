@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from checkpoint import validate_checkpoint
 from generate_data import (
     CLASS_LABELS,
     DEFAULT_HORIZON_SECONDS,
@@ -24,7 +25,7 @@ from model import DASRiskModel
 
 
 def load_model(model_path: Path) -> DASRiskModel:
-    checkpoint = torch.load(model_path, map_location="cpu", weights_only=True)
+    checkpoint = validate_checkpoint(torch.load(model_path, map_location="cpu", weights_only=True))
     model = DASRiskModel(**checkpoint["model_config"])
     model.load_state_dict(checkpoint["model_state"])
     model.eval()
