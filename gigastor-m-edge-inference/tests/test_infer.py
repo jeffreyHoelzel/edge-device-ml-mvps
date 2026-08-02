@@ -6,6 +6,7 @@ from generate_data import CAUSES, SEVERITIES, generate_dataset
 from infer import build_event
 from model import RootCauseGRU, load_checkpoint, save_checkpoint
 from stream_demo import validate_event_count
+from data_contract import validate_dataset
 
 
 def test_root_cause_probabilities_are_ranked_and_sum_to_one() -> None:
@@ -62,3 +63,16 @@ def test_stream_accepts_available_event_counts(events, available) -> None:
 def test_stream_rejects_unavailable_event_counts(events) -> None:
     with pytest.raises(ValueError, match="events"):
         validate_event_count(events, 2)
+
+
+def test_dataset_contract_rejects_missing_and_nonfinite_values() -> None:
+    dataset = generate_dataset(samples=5)
+    broken = dict(dataset)
+    del broken["baselines"]
+    with pytest.raises(ValueError, match="missing"):
+        validate_dataset(broken)
+    broken = dict(dataset)
+    broken["features"] = broken["features"].copy()
+    broken["features"][0, 0, 0] = np.nan
+    with pytest.raises(ValueError, match="finite"):
+        validate_dataset(broken)

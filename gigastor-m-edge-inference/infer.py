@@ -11,6 +11,7 @@ import numpy as np
 import torch
 
 from generate_data import CAUSES, FEATURE_NAMES, SEVERITIES
+from data_contract import load_dataset
 from model import RootCauseGRU, load_checkpoint
 
 
@@ -62,7 +63,7 @@ def build_event(model: RootCauseGRU, features: np.ndarray, baseline: np.ndarray,
 
 
 def load_record(data_path: Path, index: int) -> tuple[np.ndarray, np.ndarray]:
-    data = np.load(data_path)
+    data = load_dataset(data_path)
     if not 0 <= index < len(data["features"]):
         raise IndexError(f"index must be between 0 and {len(data['features']) - 1}")
     return data["features"][index], data["baselines"][index]

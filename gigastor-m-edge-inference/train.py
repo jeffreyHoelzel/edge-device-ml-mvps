@@ -11,13 +11,14 @@ from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
 from model import RootCauseGRU, save_checkpoint
+from data_contract import load_dataset
 
 
 def train(data_path: Path, model_path: Path, epochs: int = 30, batch_size: int = 64, seed: int = 7) -> RootCauseGRU:
     """Train on CPU and save a reloadable checkpoint; returns the trained model."""
     torch.manual_seed(seed)
     np.random.seed(seed)
-    raw = np.load(data_path)
+    raw = load_dataset(data_path)
     features = torch.tensor(raw["features"], dtype=torch.float32)
     causes = torch.tensor(raw["causes"], dtype=torch.long)
     severity = torch.tensor(raw["severity"], dtype=torch.long)
