@@ -36,7 +36,7 @@ def build_event(model: RootCauseGRU, features: np.ndarray, baseline: np.ndarray,
     if not 1 <= top_k <= len(CAUSES):
         raise ValueError(f"top_k must be between 1 and {len(CAUSES)}")
     with torch.no_grad():
-        cause_logits, severity_logits = model(torch.tensor(features[None], dtype=torch.float32))
+        cause_logits, severity_logits, _ = model(torch.tensor(features[None], dtype=torch.float32))
         probabilities = torch.softmax(cause_logits[0], dim=0).cpu().numpy()
         severity = SEVERITIES[int(severity_logits[0].argmax())]
     ordered = np.argsort(probabilities)[::-1][:top_k]

@@ -35,6 +35,12 @@ def test_checkpoint_can_be_saved_and_reloaded(tmp_path) -> None:
     assert np.allclose(before.detach().numpy(), after.detach().numpy())
 
 
+def test_model_exposes_binary_incident_head() -> None:
+    model = RootCauseGRU(input_size=9)
+    _, _, incident_logits = model(torch.rand(2, 3, 9))
+    assert incident_logits.shape == (2, 2)
+
+
 @pytest.mark.parametrize("sequence_length", [0, 1, 2])
 def test_generator_rejects_short_sequences(sequence_length) -> None:
     with pytest.raises(ValueError, match="at least 3"):
