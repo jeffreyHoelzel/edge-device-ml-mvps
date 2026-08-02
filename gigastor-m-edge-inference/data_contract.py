@@ -10,7 +10,7 @@ import numpy as np
 from generate_data import CAUSES, FEATURE_NAMES, SEVERITIES
 
 REQUIRED_FIELDS = (
-    "features", "baselines", "causes", "severity", "feature_names", "cause_names", "severity_names",
+    "features", "baselines", "causes", "severity", "incident", "feature_names", "cause_names", "severity_names",
 )
 
 
@@ -22,12 +22,12 @@ def validate_dataset(data: Mapping[str, np.ndarray]) -> dict[str, np.ndarray]:
     result = {field: np.asarray(data[field]) for field in REQUIRED_FIELDS}
     features, baselines = result["features"], result["baselines"]
     samples = len(features)
-    if features.ndim != 3 or features.shape[0] < len(CAUSES) or features.shape[1] < 3 or features.shape[2] != len(FEATURE_NAMES):
-        raise ValueError(f"features must have shape (samples >= {len(CAUSES)}, windows >= 3, {len(FEATURE_NAMES)})")
+    if features.ndim != 3 or features.shape[0] < len(CAUSES) + 1 or features.shape[1] < 3 or features.shape[2] != len(FEATURE_NAMES):
+        raise ValueError(f"features must have shape (samples >= {len(CAUSES) + 1}, windows >= 3, {len(FEATURE_NAMES)})")
     if baselines.shape != (samples, len(FEATURE_NAMES)):
         raise ValueError(f"baselines must have shape ({samples}, {len(FEATURE_NAMES)})")
-    if result["causes"].shape != (samples,) or result["severity"].shape != (samples,):
-        raise ValueError("causes and severity must each have one value per sample")
+    if any(result[field].shape != (samples,) for field in ("causes", "severity", "incident")):
+        raise ValueError("causes, severity, and incident must each have one value per sample")
     if not np.isfinite(features).all() or not np.isfinite(baselines).all():
         raise ValueError("features and baselines must contain only finite values")
     if tuple(result["feature_names"].tolist()) != FEATURE_NAMES:
@@ -38,6 +38,8 @@ def validate_dataset(data: Mapping[str, np.ndarray]) -> dict[str, np.ndarray]:
         raise ValueError("causes must be integer values in the supported range")
     if not np.issubdtype(result["severity"].dtype, np.integer) or not np.all((0 <= result["severity"]) & (result["severity"] < len(SEVERITIES))):
         raise ValueError("severity must be integer values in the supported range")
+    if not np.issubdtype(result["incident"].dtype, np.integer) or not np.all((0 <= result["incident"]) & (result["incident"] <= 1)):
+        raise ValueError("incident must contain only zero or one")
     return result
 
 
