@@ -63,6 +63,15 @@ def build_event(
         "packet_loss": _comparison(observed["packet_loss"], reference["packet_loss"]),
         "interface_utilization": _comparison(observed["interface_utilization"], reference["interface_utilization"]),
     }
+    evidence_details = {
+        name: {
+            "recent": round(float(observed[name]), 6),
+            "baseline": round(float(reference[name]), 6),
+            "ratio": round(float(observed[name] / max(reference[name], 1e-6)), 6),
+            "state": _comparison(observed[name], reference[name], "stable" if name == "network_rtt" else "normal"),
+        }
+        for name in FEATURE_NAMES
+    }
     detected = incident_probability >= incident_threshold
     event = {
         "schema_version": "1.1",
@@ -78,6 +87,7 @@ def build_event(
             {"cause": cause_names[int(index)], "probability": round(float(probabilities[index]), 6)} for index in ordered
         ] if detected else [],
         "evidence": evidence,
+        "evidence_details": evidence_details,
     }
     if context is not None:
         event["context"] = context
