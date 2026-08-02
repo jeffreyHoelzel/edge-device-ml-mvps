@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from checkpoint import validate_checkpoint
+from checkpoint import RISK_TIER_POLICY, validate_checkpoint
 from generate_data import (
     CLASS_LABELS,
     DEFAULT_HORIZON_SECONDS,
@@ -28,6 +28,9 @@ def load_model(model_path: Path) -> DASRiskModel:
     checkpoint = validate_checkpoint(torch.load(model_path, map_location="cpu", weights_only=True))
     model = DASRiskModel(**checkpoint["model_config"])
     model.load_state_dict(checkpoint["model_state"])
+    metadata = checkpoint["metadata"]
+    assert isinstance(metadata, dict)
+    model.risk_tier_policy = metadata["risk_tier_policy"]
     model.eval()
     return model
 
@@ -50,9 +53,10 @@ def forecast(
     event_type = CLASS_LABELS[int(outputs["event_logits"].argmax(dim=1).item())]
     direction = DIRECTION_LABELS[int(outputs["direction_logits"].argmax(dim=1).item())]
     probability = float(outputs["escalation_probability"].item())
-    if probability >= 0.67:
+    policy = getattr(model, "risk_tier_policy", RISK_TIER_POLICY)
+    if probability >= policy["high_threshold"]:
         risk = "high"
-    elif probability >= 0.35:
+    elif probability >= policy["medium_threshold"]:
         risk = "medium"
     else:
         risk = "low"

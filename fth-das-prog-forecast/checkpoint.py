@@ -24,7 +24,12 @@ CHECKPOINT_FORMAT_VERSION = 2
 RISK_TIER_POLICY = {"medium_threshold": 0.35, "high_threshold": 0.67}
 
 
-def create_checkpoint(model: DASRiskModel, seed: int, horizon_seconds: int = DEFAULT_HORIZON_SECONDS) -> dict[str, object]:
+def create_checkpoint(
+    model: DASRiskModel,
+    seed: int,
+    horizon_seconds: int = DEFAULT_HORIZON_SECONDS,
+    evaluation_metrics: dict[str, object] | None = None,
+) -> dict[str, object]:
     """Create a portable, self-describing CPU checkpoint."""
     return {
         "checkpoint_format_version": CHECKPOINT_FORMAT_VERSION,
@@ -40,6 +45,7 @@ def create_checkpoint(model: DASRiskModel, seed: int, horizon_seconds: int = DEF
             "horizon_seconds": horizon_seconds,
             "seed": seed,
             "risk_tier_policy": RISK_TIER_POLICY,
+            "evaluation_metrics": evaluation_metrics,
         },
     }
 

@@ -197,5 +197,7 @@ class SyntheticDASDataset(Dataset[dict[str, torch.Tensor]]):
             "class_index": torch.tensor(meta.class_index, dtype=torch.long),
             "direction_index": torch.tensor(meta.direction_index, dtype=torch.long),
             "speed": torch.tensor(meta.speed_m_per_min / MAX_SPEED_M_PER_MIN, dtype=torch.float32),
+            "window_end_location": torch.tensor(meta.window_end_location_m, dtype=torch.float32),
+            "future_location": torch.tensor(meta.future_location_m, dtype=torch.float32),
             "escalation": torch.tensor(meta.escalation_probability, dtype=torch.float32),
         }
