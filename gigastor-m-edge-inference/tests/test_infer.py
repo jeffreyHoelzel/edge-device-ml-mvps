@@ -5,6 +5,7 @@ import torch
 from generate_data import CAUSES, SEVERITIES, generate_dataset
 from infer import build_event
 from model import RootCauseGRU, load_checkpoint, save_checkpoint
+from stream_demo import validate_event_count
 
 
 def test_root_cause_probabilities_are_ranked_and_sum_to_one() -> None:
@@ -50,3 +51,14 @@ def test_inference_rejects_invalid_ranking_limit(top_k) -> None:
     dataset = generate_dataset(samples=5, seed=4)
     with pytest.raises(ValueError, match="top_k"):
         build_event(RootCauseGRU(input_size=9).eval(), dataset["features"][0], dataset["baselines"][0], top_k=top_k)
+
+
+@pytest.mark.parametrize("events, available", [(0, 2), (2, 2)])
+def test_stream_accepts_available_event_counts(events, available) -> None:
+    validate_event_count(events, available)
+
+
+@pytest.mark.parametrize("events", [-1, 3])
+def test_stream_rejects_unavailable_event_counts(events) -> None:
+    with pytest.raises(ValueError, match="events"):
+        validate_event_count(events, 2)

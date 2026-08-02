@@ -10,6 +10,14 @@ from infer import build_event, load_record
 from model import load_checkpoint
 
 
+def validate_event_count(events: int, available: int) -> None:
+    """Ensure a requested stream length is representable by the input data."""
+    if events < 0:
+        raise ValueError("events must be zero or greater")
+    if events > available:
+        raise ValueError(f"events must not exceed available records ({available})")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", type=Path, default=Path("artifacts/observer_gru.pt"))
@@ -17,6 +25,10 @@ def main() -> None:
     parser.add_argument("--events", type=int, default=5)
     args = parser.parse_args()
     model = load_checkpoint(args.model)
+    import numpy as np
+
+    with np.load(args.data) as data:
+        validate_event_count(args.events, len(data["features"]))
     for index in range(args.events):
         features, baseline = load_record(args.data, index)
         print(json.dumps(build_event(model, features, baseline), separators=(",", ":")))
