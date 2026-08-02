@@ -11,7 +11,14 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from generate_data import FIBER_LENGTH_M, PROTECTED_ZONE_M, SCENARIOS, TIME_STEP_SECONDS, generate_sample
+from generate_data import (
+    FIBER_LENGTH_M,
+    PROTECTED_ZONE_CENTER_M,
+    PROTECTED_ZONE_HALF_WIDTH_M,
+    SCENARIOS,
+    TIME_STEP_SECONDS,
+    generate_sample,
+)
 
 
 def main() -> None:
@@ -31,7 +38,13 @@ def main() -> None:
     image = heatmap_ax.imshow(
         signal, extent=[0, FIBER_LENGTH_M, signal.shape[0] - 1, 0], aspect="auto", cmap="magma"
     )
-    heatmap_ax.axvspan(PROTECTED_ZONE_M - 50, PROTECTED_ZONE_M + 50, color="cyan", alpha=0.25, label="protected zone")
+    heatmap_ax.axvspan(
+        PROTECTED_ZONE_CENTER_M - PROTECTED_ZONE_HALF_WIDTH_M,
+        PROTECTED_ZONE_CENTER_M + PROTECTED_ZONE_HALF_WIDTH_M,
+        color="cyan",
+        alpha=0.25,
+        label="protected zone",
+    )
     heatmap_ax.plot(track, times, "c--", linewidth=2, label="synthetic event track")
     heatmap_ax.set_ylabel("time step")
     heatmap_ax.set_title(f"Synthetic DAS-like intensity: {meta.scenario}")
@@ -39,7 +52,13 @@ def main() -> None:
     figure.colorbar(image, ax=heatmap_ax, label="signal intensity")
 
     track_ax.plot(times, track, marker="o", color="tab:orange", label="event location")
-    track_ax.axhspan(PROTECTED_ZONE_M - 50, PROTECTED_ZONE_M + 50, color="tab:red", alpha=0.18, label="protected zone")
+    track_ax.axhspan(
+        PROTECTED_ZONE_CENTER_M - PROTECTED_ZONE_HALF_WIDTH_M,
+        PROTECTED_ZONE_CENTER_M + PROTECTED_ZONE_HALF_WIDTH_M,
+        color="tab:red",
+        alpha=0.18,
+        label="protected zone",
+    )
     track_ax.set(xlabel="time step", ylabel="location along fiber (m)")
     track_ax.legend(loc="best")
     figure.savefig(args.output, dpi=150)

@@ -18,7 +18,8 @@ SCENARIOS = (
     "excavation_away",
 )
 FIBER_LENGTH_M = 2_500.0
-PROTECTED_ZONE_M = 2_000.0
+PROTECTED_ZONE_CENTER_M = 2_000.0
+PROTECTED_ZONE_HALF_WIDTH_M = 50.0
 MAX_SPEED_M_PER_MIN = 12.0
 DEFAULT_HORIZON_SECONDS = 300
 TIME_STEP_SECONDS = 15
@@ -35,7 +36,8 @@ class EventMetadata:
     direction: int
     speed_m_per_min: float
     intensity: float
-    protected_zone_m: float
+    protected_zone_center_m: float
+    protected_zone_half_width_m: float
     horizon_seconds: int
     future_location_m: float
     escalation_probability: float
@@ -50,26 +52,32 @@ def project_future_location(
     return float(np.clip(projected, 0.0, fiber_length_m))
 
 
-def _toward_direction(location_m: float, protected_zone_m: float) -> int:
-    return 1 if location_m < protected_zone_m else -1
+def protected_zone_bounds(center_m: float, half_width_m: float) -> tuple[float, float]:
+    return center_m - half_width_m, center_m + half_width_m
 
 
-def _scenario_labels(scenario: str, location_m: float, protected_zone_m: float) -> tuple[int, int, int, float]:
+def distance_to_protected_zone(location_m: float, center_m: float, half_width_m: float) -> float:
+    """Return zero inside the zone and the nearest-boundary distance outside it."""
+    lower_bound, upper_bound = protected_zone_bounds(center_m, half_width_m)
+    return max(lower_bound - location_m, 0.0, location_m - upper_bound)
+
+
+def _toward_direction(location_m: float, protected_zone_center_m: float) -> int:
+    return 1 if location_m < protected_zone_center_m else -1
+
+
+def _scenario_labels(scenario: str, location_m: float, protected_zone_center_m: float) -> tuple[int, int, int, float]:
     if scenario == "background_noise":
         return 0, 0, 0, 0.0
     if scenario == "passing_vehicle":
-        direction = 1 if location_m < fiber_midpoint() else -1
+        direction = _toward_direction(location_m, protected_zone_center_m)
         return 1, 2 if direction < 0 else 1, direction, 8.0
     if scenario == "stationary_vibration":
         return 2, 0, 0, 0.0
-    toward = _toward_direction(location_m, protected_zone_m)
+    toward = _toward_direction(location_m, protected_zone_center_m)
     if scenario == "excavation_approaching":
         return 3, 1, toward, 4.5
     return 3, 2, -toward, 4.5
-
-
-def fiber_midpoint() -> float:
-    return FIBER_LENGTH_M / 2.0
 
 
 def generate_sample(
@@ -78,14 +86,15 @@ def generate_sample(
     time_steps: int = 20,
     distance_bins: int = 96,
     horizon_seconds: int = DEFAULT_HORIZON_SECONDS,
-    protected_zone_m: float = PROTECTED_ZONE_M,
+    protected_zone_center_m: float = PROTECTED_ZONE_CENTER_M,
+    protected_zone_half_width_m: float = PROTECTED_ZONE_HALF_WIDTH_M,
 ) -> tuple[np.ndarray, EventMetadata]:
     """Create one [time, distance] intensity array and its synthetic labels."""
     scenario = scenario or str(rng.choice(SCENARIOS))
     if scenario not in SCENARIOS:
         raise ValueError(f"Unknown scenario: {scenario}")
     location = float(rng.uniform(150.0, FIBER_LENGTH_M - 150.0))
-    class_index, direction_index, direction, base_speed = _scenario_labels(scenario, location, protected_zone_m)
+    class_index, direction_index, direction, base_speed = _scenario_labels(scenario, location, protected_zone_center_m)
     speed = 0.0 if base_speed == 0 else float(np.clip(rng.normal(base_speed, 1.0), 1.0, MAX_SPEED_M_PER_MIN))
     intensity = float(rng.uniform(0.45, 1.0))
     time = np.arange(time_steps, dtype=np.float32)
@@ -109,7 +118,9 @@ def generate_sample(
         signal[frame] += amplitude * np.exp(-0.5 * ((distance - center) / width_m) ** 2)
     signal += 0.018 * np.sin(distance[None, :] / 75.0 + time[:, None] * 0.6)
 
-    distance_to_zone = abs(future_location - protected_zone_m)
+    distance_to_zone = distance_to_protected_zone(
+        future_location, protected_zone_center_m, protected_zone_half_width_m
+    )
     is_approaching_excavation = scenario == "excavation_approaching"
     risk = 0.03 + 0.91 * float(is_approaching_excavation) * np.exp(-distance_to_zone / 700.0)
     risk += float(rng.normal(0.0, 0.02))
@@ -124,7 +135,8 @@ def generate_sample(
         direction=direction,
         speed_m_per_min=speed,
         intensity=intensity,
-        protected_zone_m=protected_zone_m,
+        protected_zone_center_m=protected_zone_center_m,
+        protected_zone_half_width_m=protected_zone_half_width_m,
         horizon_seconds=horizon_seconds,
         future_location_m=future_location,
         escalation_probability=risk,

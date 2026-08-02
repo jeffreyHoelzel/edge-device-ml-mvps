@@ -14,7 +14,8 @@ from generate_data import (
     DEFAULT_HORIZON_SECONDS,
     DIRECTION_LABELS,
     FIBER_LENGTH_M,
-    PROTECTED_ZONE_M,
+    PROTECTED_ZONE_CENTER_M,
+    PROTECTED_ZONE_HALF_WIDTH_M,
     SCENARIOS,
     generate_sample,
     project_future_location,
@@ -35,7 +36,8 @@ def forecast(
     signal: np.ndarray,
     current_location_m: float,
     horizon_seconds: int,
-    protected_zone_m: float = PROTECTED_ZONE_M,
+    protected_zone_center_m: float = PROTECTED_ZONE_CENTER_M,
+    protected_zone_half_width_m: float = PROTECTED_ZONE_HALF_WIDTH_M,
 ) -> dict[str, object]:
     with torch.inference_mode():
         outputs = model(torch.from_numpy(signal).unsqueeze(0))
@@ -53,7 +55,9 @@ def forecast(
         "away_from_asset": "moving_away_from_protected_asset",
         "stationary": "stationary",
     }[direction]
-    toward_sign = 1 if current_location_m < protected_zone_m else -1
+    lower_bound = protected_zone_center_m - protected_zone_half_width_m
+    upper_bound = protected_zone_center_m + protected_zone_half_width_m
+    toward_sign = 1 if current_location_m < lower_bound else -1 if current_location_m > upper_bound else 0
     direction_sign = {
         "stationary": 0,
         "toward_asset": toward_sign,
