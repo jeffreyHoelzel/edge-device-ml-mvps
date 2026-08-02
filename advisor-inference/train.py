@@ -13,6 +13,62 @@ from torch.utils.data import DataLoader, TensorDataset
 from model import RFInterferenceCNN
 
 
+def positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return parsed
+
+
+def positive_float(value: str) -> float:
+    parsed = float(value)
+    if not np.isfinite(parsed) or parsed <= 0:
+        raise argparse.ArgumentTypeError("must be a finite value greater than 0")
+    return parsed
+
+
+def load_training_data(path: Path) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Load and validate the fixed RF training-data contract."""
+    loaded = np.load(path)
+    if not isinstance(loaded, np.lib.npyio.NpzFile):
+        raise ValueError("Training data must be a .npz file with spectrograms, classes, bounds, and impacts")
+    try:
+        required = {"spectrograms", "classes", "bounds", "impacts"}
+        missing = required.difference(loaded.files)
+        if missing:
+            raise ValueError(f"Training data is missing required arrays: {', '.join(sorted(missing))}")
+        spectrograms = loaded["spectrograms"]
+        classes = loaded["classes"]
+        bounds = loaded["bounds"]
+        impacts = loaded["impacts"]
+    finally:
+        loaded.close()
+
+    count = len(spectrograms)
+    if count < 1 or spectrograms.shape != (count, 1, 64, 128):
+        raise ValueError("spectrograms must have shape (N, 1, 64, 128) with N at least 1")
+    if classes.shape != (count,) or bounds.shape != (count, 2) or impacts.shape != (count,):
+        raise ValueError("classes, bounds, and impacts must align with the spectrogram count")
+    if not np.issubdtype(spectrograms.dtype, np.number) or not np.issubdtype(bounds.dtype, np.number):
+        raise ValueError("spectrograms and bounds must be numeric arrays")
+    if not np.issubdtype(classes.dtype, np.integer) or not np.issubdtype(impacts.dtype, np.integer):
+        raise ValueError("classes and impacts must be integer arrays")
+    if not np.isfinite(spectrograms).all() or not np.isfinite(bounds).all():
+        raise ValueError("spectrograms and bounds must contain only finite values")
+    if np.any(classes < 0) or np.any(classes >= 5):
+        raise ValueError("classes must contain IDs from 0 to 4")
+    if np.any(impacts < 0) or np.any(impacts >= 3):
+        raise ValueError("impacts must contain IDs from 0 to 2")
+    if np.any(bounds < 0.0) or np.any(bounds > 1.0) or np.any(bounds[:, 0] > bounds[:, 1]):
+        raise ValueError("bounds must be ordered and normalized to [0, 1]")
+    return (
+        torch.from_numpy(spectrograms.astype(np.float32)),
+        torch.from_numpy(classes.astype(np.int64)),
+        torch.from_numpy(bounds.astype(np.float32)),
+        torch.from_numpy(impacts.astype(np.int64)),
+    )
+
+
 def normalize_per_window(spectrograms: torch.Tensor) -> torch.Tensor:
     mean = spectrograms.mean(dim=(2, 3), keepdim=True)
     std = spectrograms.std(dim=(2, 3), keepdim=True).clamp_min(1e-5)
@@ -34,19 +90,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Train the RF interference classifier on a .npz dataset.")
     parser.add_argument("--data", type=Path, default=Path("data/train.npz"))
     parser.add_argument("--model-output", type=Path, default=Path("artifacts/rf_interference_cnn.pt"))
-    parser.add_argument("--epochs", type=int, default=18)
-    parser.add_argument("--batch-size", type=int, default=64)
-    parser.add_argument("--learning-rate", type=float, default=1e-3)
+    parser.add_argument("--epochs", type=positive_int, default=18)
+    parser.add_argument("--batch-size", type=positive_int, default=64)
+    parser.add_argument("--learning-rate", type=positive_float, default=1e-3)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
     device = torch.device("cpu")
-    data = np.load(args.data)
-    features = torch.from_numpy(data["spectrograms"].astype(np.float32))
-    classes = torch.from_numpy(data["classes"].astype(np.int64))
-    bounds = torch.from_numpy(data["bounds"].astype(np.float32))
-    impacts = torch.from_numpy(data["impacts"].astype(np.int64))
+    features, classes, bounds, impacts = load_training_data(args.data)
     split = max(1, int(len(features) * 0.8))
     train_set = TensorDataset(features[:split], classes[:split], bounds[:split], impacts[:split])
     validation_set = TensorDataset(features[split:], classes[split:], bounds[split:], impacts[split:])
