@@ -1,8 +1,8 @@
 import torch
 import pytest
 
-from contract import CHECKPOINT_FORMAT_VERSION, CLASS_NAMES, IMPACT_NAMES, INPUT_SHAPE, NORMALIZATION_NAME
-from infer import build_result, confidence_threshold, load_model, validate_checkpoint, validate_frequency_span
+from contract import CHECKPOINT_FORMAT_VERSION, CLASS_NAMES, IMPACT_NAMES, INPUT_SHAPE, NORMALIZATION_NAME, validate_frequency_span
+from infer import build_result, confidence_threshold, load_model, validate_checkpoint
 from model import NUM_CLASSES, NUM_IMPACT_LEVELS, RFInterferenceCNN
 
 

@@ -19,6 +19,7 @@ from contract import (
     NORMALIZATION_NAME,
     TIME_BINS,
     normalize_per_window,
+    validate_frequency_span,
 )
 from model import NUM_CLASSES, NUM_IMPACT_LEVELS, RFInterferenceCNN
 
@@ -67,17 +68,6 @@ def confidence_threshold(value: str) -> float:
     if not np.isfinite(parsed) or not 0.0 <= parsed <= 1.0:
         raise argparse.ArgumentTypeError("must be a finite value from 0 to 1")
     return parsed
-
-
-def validate_frequency_span(start_hz: float | None, stop_hz: float | None) -> tuple[float, float] | None:
-    """Validate an optional physical span that maps normalized bounds to Hz."""
-    if start_hz is None and stop_hz is None:
-        return None
-    if start_hz is None or stop_hz is None:
-        raise ValueError("--frequency-start-hz and --frequency-stop-hz must be supplied together")
-    if not np.isfinite(start_hz) or not np.isfinite(stop_hz) or start_hz < 0 or stop_hz <= start_hz:
-        raise ValueError("frequency span must be finite, non-negative, and have stop greater than start")
-    return start_hz, stop_hz
 
 
 def build_result(
