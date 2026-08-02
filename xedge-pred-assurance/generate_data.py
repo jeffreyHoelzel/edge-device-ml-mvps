@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +22,7 @@ SEVERITY_NAMES = ("minor", "major", "critical")
 SAMPLE_INTERVAL_SECONDS = 5
 FORECAST_HORIZON_SECONDS = 60
 FORECAST_STEPS = FORECAST_HORIZON_SECONDS // SAMPLE_INTERVAL_SECONDS
+DATASET_FORMAT_VERSION = 2
 
 # Stable scaling makes training and streaming use exactly the same representation.
 FEATURE_MEAN = np.array([35.0, 4.0, 0.1, 35.0, 80.0, 82.0, 1.0], dtype=np.float32)
@@ -29,7 +31,12 @@ FEATURE_STD = np.array([35.0, 8.0, 1.0, 20.0, 45.0, 18.0, 4.0], dtype=np.float32
 
 def normalize_features(values: np.ndarray) -> np.ndarray:
     """Normalize raw KPI measurements; accepts (..., 7) arrays."""
-    return ((values - FEATURE_MEAN) / FEATURE_STD).astype(np.float32)
+    array = np.asarray(values, dtype=np.float32)
+    if array.ndim < 1 or array.shape[-1] != len(FEATURE_NAMES):
+        raise ValueError(f"expected KPI values with final dimension {len(FEATURE_NAMES)}")
+    if not np.isfinite(array).all():
+        raise ValueError("KPI values must be finite")
+    return ((array - FEATURE_MEAN) / FEATURE_STD).astype(np.float32)
 
 
 def _severity_strength(severity: int) -> float:
@@ -162,6 +169,22 @@ def make_dataset(samples: int, sequence_length: int, seed: int = 7) -> dict[str,
     }
 
 
+def dataset_metadata(sequence_length: int) -> dict[str, object]:
+    return {
+        "format_version": DATASET_FORMAT_VERSION,
+        "feature_names": FEATURE_NAMES,
+        "sequence_length": sequence_length,
+        "sample_interval_seconds": SAMPLE_INTERVAL_SECONDS,
+        "forecast_horizon_seconds": FORECAST_HORIZON_SECONDS,
+    }
+
+
+def save_dataset(path: Path, data: dict[str, np.ndarray]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    metadata = json.dumps(dataset_metadata(data["x"].shape[1]), sort_keys=True)
+    np.savez_compressed(path, **data, metadata_json=np.array(metadata))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=Path("data/synthetic_train.npz"))
@@ -173,8 +196,7 @@ def main() -> None:
         raise ValueError("--samples and --sequence-length must both be at least 8")
 
     data = make_dataset(args.samples, args.sequence_length, args.seed)
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(args.output, **data)
+    save_dataset(args.output, data)
     positives = int(data["incident"].sum())
     print(f"Wrote {args.output} ({args.samples} windows; {positives} degradation windows).")
 

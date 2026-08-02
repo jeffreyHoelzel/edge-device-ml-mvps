@@ -16,6 +16,14 @@ from model import load_model
 
 def forecast_event(probability: float, cause_index: int, severity_index: int, horizon_seconds: int = 60) -> dict[str, object]:
     """Format one stable, JSON-serializable forecast event."""
+    if not 0.0 <= probability <= 1.0:
+        raise ValueError("probability must be between 0 and 1")
+    if not 0 <= cause_index < len(CAUSE_NAMES):
+        raise ValueError("cause_index is out of range")
+    if not 0 <= severity_index < len(SEVERITY_NAMES):
+        raise ValueError("severity_index is out of range")
+    if horizon_seconds < 1:
+        raise ValueError("horizon_seconds must be positive")
     return {
         "event_type": "sla_violation_forecast",
         "probability": round(float(probability), 4),

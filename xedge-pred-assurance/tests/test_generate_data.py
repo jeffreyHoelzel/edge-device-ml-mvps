@@ -1,6 +1,7 @@
 import numpy as np
+import pytest
 
-from generate_data import FORECAST_HORIZON_SECONDS, FORECAST_STEPS, generate_sequence, make_dataset
+from generate_data import FORECAST_HORIZON_SECONDS, FORECAST_STEPS, generate_sequence, make_dataset, normalize_features
 
 
 def test_dataset_is_deterministic_and_has_fixed_forecast_horizon() -> None:
@@ -32,3 +33,10 @@ def test_raw_kpis_remain_physical_with_profile_and_benign_burst_variation() -> N
     assert np.all((first[:, 5] >= 0.0) & (first[:, 5] <= 100.0))
     assert np.all(first[:, 6] >= 0.0)
     assert not np.array_equal(first, second)
+
+
+def test_normalize_features_rejects_invalid_kpis() -> None:
+    with pytest.raises(ValueError, match="final dimension"):
+        normalize_features(np.zeros((3, 6), dtype=np.float32))
+    with pytest.raises(ValueError, match="finite"):
+        normalize_features(np.full((3, 7), np.nan, dtype=np.float32))

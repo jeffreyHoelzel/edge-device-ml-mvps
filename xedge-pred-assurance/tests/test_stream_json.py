@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from stream_demo import forecast_event
 
 
@@ -18,3 +20,9 @@ def test_forecast_event_json_schema() -> None:
     assert event["forecast_horizon_seconds"] == 60
     assert event["likely_cause"] == "rf_interference"
     assert event["severity"] == "major"
+
+
+@pytest.mark.parametrize("probability", (-0.1, 1.1))
+def test_forecast_event_rejects_invalid_probability(probability: float) -> None:
+    with pytest.raises(ValueError, match="probability"):
+        forecast_event(probability, 0, 1)

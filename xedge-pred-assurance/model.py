@@ -60,6 +60,10 @@ class PredictiveAssuranceModel(nn.Module):
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         if x.ndim != 3 or x.shape[-1] != self.config.input_features:
             raise ValueError(f"expected [batch, time, {self.config.input_features}], received {tuple(x.shape)}")
+        if x.shape[1] < 1:
+            raise ValueError("expected at least one KPI measurement")
+        if not torch.isfinite(x).all():
+            raise ValueError("KPI values must be finite")
         encoded = self.temporal(x.transpose(1, 2)).transpose(1, 2)
         _, hidden = self.gru(encoded)
         summary = hidden[-1]
