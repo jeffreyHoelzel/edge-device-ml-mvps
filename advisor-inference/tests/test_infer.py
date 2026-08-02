@@ -2,7 +2,7 @@ import torch
 import pytest
 
 from contract import CHECKPOINT_FORMAT_VERSION, CLASS_NAMES, IMPACT_NAMES, INPUT_SHAPE, NORMALIZATION_NAME
-from infer import load_model, validate_checkpoint
+from infer import build_result, confidence_threshold, load_model, validate_checkpoint
 from model import NUM_CLASSES, NUM_IMPACT_LEVELS, RFInterferenceCNN
 
 
@@ -33,3 +33,31 @@ def test_checkpoint_validation_reports_incompatible_metadata() -> None:
     checkpoint["format_version"] = CHECKPOINT_FORMAT_VERSION + 1
     with pytest.raises(ValueError, match="format_version"):
         validate_checkpoint(checkpoint)
+
+
+@pytest.mark.parametrize(
+    ("probabilities", "expected_status", "expected_bounds", "expected_impact"),
+    [
+        (torch.tensor([0.1, 0.7, 0.1, 0.05, 0.05]), "detected", (0.2, 0.6), "high"),
+        (torch.tensor([0.8, 0.1, 0.05, 0.03, 0.02]), "no_interference", (0.0, 0.0), "low"),
+        (torch.tensor([0.1, 0.2, 0.5, 0.1, 0.1]), "abstained", (0.0, 0.0), "low"),
+    ],
+)
+def test_result_status_handles_detected_empty_and_abstained_predictions(
+    probabilities, expected_status, expected_bounds, expected_impact
+) -> None:
+    result = build_result(probabilities, torch.tensor([0.0, 0.0, 2.0]), torch.tensor([0.2, 0.6]), 0.6)
+    assert result["detection_status"] == expected_status
+    assert (result["frequency_start_normalized"], result["frequency_stop_normalized"]) == expected_bounds
+    assert result["estimated_service_impact"] == expected_impact
+
+
+def test_result_detects_at_the_exact_confidence_threshold() -> None:
+    result = build_result(torch.tensor([0.2, 0.6, 0.2, 0.0, 0.0]), torch.tensor([1.0, 0.0, 0.0]), torch.tensor([0.2, 0.6]), 0.6)
+    assert result["detection_status"] == "detected"
+
+
+@pytest.mark.parametrize("value", ["-0.1", "1.1", "nan"])
+def test_confidence_threshold_rejects_invalid_values(value: str) -> None:
+    with pytest.raises(Exception):
+        confidence_threshold(value)

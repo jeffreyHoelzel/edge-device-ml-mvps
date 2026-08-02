@@ -17,6 +17,7 @@ FREQUENCY_BINS = 128
 INPUT_SHAPE = (1, TIME_BINS, FREQUENCY_BINS)
 NORMALIZATION_NAME = "per_window_zscore"
 CHECKPOINT_FORMAT_VERSION = 1
+DEFAULT_CONFIDENCE_THRESHOLD = 0.60
 
 
 def normalize_per_window(spectrograms: torch.Tensor) -> torch.Tensor:
