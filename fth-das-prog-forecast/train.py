@@ -9,7 +9,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
-from generate_data import SyntheticDASDataset
+from generate_data import MAX_SPEED_M_PER_MIN, SyntheticDASDataset
 from model import DASRiskModel
 
 
@@ -18,8 +18,7 @@ def loss_for(outputs: dict[str, torch.Tensor], batch: dict[str, torch.Tensor]) -
     return (
         nn.functional.cross_entropy(outputs["event_logits"], batch["class_index"])
         + nn.functional.cross_entropy(outputs["direction_logits"], batch["direction_index"])
-        + mse(outputs["speed_m_per_min"] / 12.0, batch["speed"])
-        + mse(outputs["future_location"], batch["future_location"])
+        + mse(outputs["speed_m_per_min"] / MAX_SPEED_M_PER_MIN, batch["speed"])
         + nn.functional.binary_cross_entropy(outputs["escalation_probability"], batch["escalation"])
     )
 

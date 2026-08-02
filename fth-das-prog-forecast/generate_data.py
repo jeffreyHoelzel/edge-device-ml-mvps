@@ -31,6 +31,7 @@ class EventMetadata:
     class_index: int
     direction_index: int
     current_location_m: float
+    window_end_location_m: float
     direction: int
     speed_m_per_min: float
     intensity: float
@@ -87,12 +88,14 @@ def generate_sample(
     class_index, direction_index, direction, base_speed = _scenario_labels(scenario, location, protected_zone_m)
     speed = 0.0 if base_speed == 0 else float(np.clip(rng.normal(base_speed, 1.0), 1.0, MAX_SPEED_M_PER_MIN))
     intensity = float(rng.uniform(0.45, 1.0))
-    future_location = project_future_location(location, direction, speed, horizon_seconds)
-
     time = np.arange(time_steps, dtype=np.float32)
     distance = np.linspace(0, FIBER_LENGTH_M, distance_bins, dtype=np.float32)
     # Each frame represents 15 seconds: enough motion to be visible in this tiny grid.
     frame_locations = location + direction * speed * time * TIME_STEP_SECONDS / 60.0
+    window_end_location = project_future_location(
+        location, direction, speed, (time_steps - 1) * TIME_STEP_SECONDS
+    )
+    future_location = project_future_location(window_end_location, direction, speed, horizon_seconds)
     signal = rng.normal(0.0, 0.055, size=(time_steps, distance_bins)).astype(np.float32)
     width_m = 55.0 if scenario != "passing_vehicle" else 40.0
     for frame, center in enumerate(frame_locations):
@@ -117,6 +120,7 @@ def generate_sample(
         class_index=class_index,
         direction_index=direction_index,
         current_location_m=location,
+        window_end_location_m=window_end_location,
         direction=direction,
         speed_m_per_min=speed,
         intensity=intensity,
@@ -145,6 +149,5 @@ class SyntheticDASDataset(Dataset[dict[str, torch.Tensor]]):
             "class_index": torch.tensor(meta.class_index, dtype=torch.long),
             "direction_index": torch.tensor(meta.direction_index, dtype=torch.long),
             "speed": torch.tensor(meta.speed_m_per_min / MAX_SPEED_M_PER_MIN, dtype=torch.float32),
-            "future_location": torch.tensor(meta.future_location_m / FIBER_LENGTH_M, dtype=torch.float32),
             "escalation": torch.tensor(meta.escalation_probability, dtype=torch.float32),
         }

@@ -10,7 +10,6 @@ def test_model_output_shapes() -> None:
     assert outputs["event_logits"].shape == (3, len(CLASS_LABELS))
     assert outputs["direction_logits"].shape == (3, len(DIRECTION_LABELS))
     assert outputs["speed_m_per_min"].shape == (3,)
-    assert outputs["future_location"].shape == (3,)
     assert outputs["escalation_probability"].shape == (3,)
 
 

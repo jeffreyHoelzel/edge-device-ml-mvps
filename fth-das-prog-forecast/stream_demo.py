@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from generate_data import SCENARIOS, TIME_STEP_SECONDS, generate_sample
+from generate_data import SCENARIOS, TIME_STEP_SECONDS, generate_sample, project_future_location
 from infer import forecast, load_model
 
 
@@ -24,7 +24,12 @@ def main() -> None:
     model = load_model(args.model_path)
     for offset in range(args.updates):
         window = signal[offset : offset + 20]
-        current_location = metadata.current_location_m + metadata.direction * metadata.speed_m_per_min * (offset + 19) * TIME_STEP_SECONDS / 60.0
+        current_location = project_future_location(
+            metadata.current_location_m,
+            metadata.direction,
+            metadata.speed_m_per_min,
+            (offset + 19) * TIME_STEP_SECONDS,
+        )
         print(json.dumps(forecast(model, window, current_location, metadata.horizon_seconds)))
 
 

@@ -14,8 +14,10 @@ from generate_data import (
     DEFAULT_HORIZON_SECONDS,
     DIRECTION_LABELS,
     FIBER_LENGTH_M,
+    PROTECTED_ZONE_M,
     SCENARIOS,
     generate_sample,
+    project_future_location,
 )
 from model import DASRiskModel
 
@@ -28,7 +30,13 @@ def load_model(model_path: Path) -> DASRiskModel:
     return model
 
 
-def forecast(model: DASRiskModel, signal: np.ndarray, current_location_m: float, horizon_seconds: int) -> dict[str, object]:
+def forecast(
+    model: DASRiskModel,
+    signal: np.ndarray,
+    current_location_m: float,
+    horizon_seconds: int,
+    protected_zone_m: float = PROTECTED_ZONE_M,
+) -> dict[str, object]:
     with torch.inference_mode():
         outputs = model(torch.from_numpy(signal).unsqueeze(0))
     event_type = CLASS_LABELS[int(outputs["event_logits"].argmax(dim=1).item())]
@@ -45,12 +53,22 @@ def forecast(model: DASRiskModel, signal: np.ndarray, current_location_m: float,
         "away_from_asset": "moving_away_from_protected_asset",
         "stationary": "stationary",
     }[direction]
+    toward_sign = 1 if current_location_m < protected_zone_m else -1
+    direction_sign = {
+        "stationary": 0,
+        "toward_asset": toward_sign,
+        "away_from_asset": -toward_sign,
+    }[direction]
+    speed = float(outputs["speed_m_per_min"].item())
+    if direction == "stationary":
+        speed = 0.0
+    future_location = project_future_location(current_location_m, direction_sign, speed, horizon_seconds)
     return {
         "event_type": event_type,
         "current_location_m": round(current_location_m),
         "trajectory": trajectory,
-        "estimated_speed_m_per_min": round(float(outputs["speed_m_per_min"].item()), 2),
-        "predicted_future_location_m": round(float(outputs["future_location"].item()) * FIBER_LENGTH_M, 1),
+        "estimated_speed_m_per_min": round(speed, 2),
+        "predicted_future_location_m": round(future_location, 1),
         "risk_horizon_seconds": horizon_seconds,
         "escalation_probability": round(probability, 3),
         "predicted_risk": risk,
@@ -64,7 +82,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
     signal, metadata = generate_sample(np.random.default_rng(args.seed), scenario=args.scenario)
-    result = forecast(load_model(args.model_path), signal, metadata.current_location_m, metadata.horizon_seconds)
+    result = forecast(load_model(args.model_path), signal, metadata.window_end_location_m, metadata.horizon_seconds)
     print(json.dumps(result, indent=2))
 
 
