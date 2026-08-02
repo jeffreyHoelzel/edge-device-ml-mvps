@@ -9,16 +9,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-CLASS_NAMES = [
-    "no_interference",
-    "narrowband_continuous",
-    "wideband_intermittent",
-    "periodic_impulsive",
-    "adjacent_channel_leakage",
-]
-IMPACT_NAMES = ["low", "moderate", "high"]
-TIME_BINS = 64
-FREQUENCY_BINS = 128
+from contract import CLASS_NAMES, FREQUENCY_BINS, IMPACT_NAMES, TIME_BINS
 
 
 @dataclass(frozen=True)

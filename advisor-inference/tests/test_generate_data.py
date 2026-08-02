@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
 
-from generate_data import CLASS_NAMES, FREQUENCY_BINS, TIME_BINS, generate_dataset, generate_sample
+from contract import CLASS_NAMES, FREQUENCY_BINS, TIME_BINS
+from generate_data import generate_dataset, generate_sample
 
 
 def test_generated_interference_has_valid_frequency_bounds() -> None:

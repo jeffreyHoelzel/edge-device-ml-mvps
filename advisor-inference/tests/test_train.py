@@ -1,12 +1,14 @@
 import numpy as np
 import pytest
+import torch
 
+from contract import FREQUENCY_BINS, TIME_BINS, normalize_per_window
 from train import load_training_data, positive_float, positive_int
 
 
 def _write_dataset(path, **overrides: np.ndarray) -> None:
     arrays = {
-        "spectrograms": np.zeros((2, 1, 64, 128), dtype=np.float32),
+        "spectrograms": np.zeros((2, 1, TIME_BINS, FREQUENCY_BINS), dtype=np.float32),
         "classes": np.array([0, 1], dtype=np.int64),
         "bounds": np.array([[0.0, 0.0], [0.2, 0.4]], dtype=np.float32),
         "impacts": np.array([0, 1], dtype=np.int64),
@@ -19,7 +21,7 @@ def test_load_training_data_accepts_valid_contract(tmp_path) -> None:
     path = tmp_path / "valid.npz"
     _write_dataset(path)
     features, classes, bounds, impacts = load_training_data(path)
-    assert features.shape == (2, 1, 64, 128)
+    assert features.shape == (2, 1, TIME_BINS, FREQUENCY_BINS)
     assert classes.tolist() == [0, 1]
     assert bounds.shape == (2, 2)
     assert impacts.tolist() == [0, 1]
@@ -29,7 +31,7 @@ def test_load_training_data_accepts_valid_contract(tmp_path) -> None:
     ("overrides", "message"),
     [
         ({"classes": np.array([0])}, "align"),
-        ({"spectrograms": np.zeros((2, 64, 128), dtype=np.float32)}, "shape"),
+        ({"spectrograms": np.zeros((2, TIME_BINS, FREQUENCY_BINS), dtype=np.float32)}, "shape"),
         ({"classes": np.array([0, 5])}, "classes"),
         ({"impacts": np.array([0, 3])}, "impacts"),
         ({"bounds": np.array([[0.0, 0.0], [0.7, 0.2]])}, "bounds"),
@@ -49,3 +51,8 @@ def test_positive_argument_types_reject_invalid_values() -> None:
         positive_float("0")
     with pytest.raises(Exception):
         positive_float("nan")
+
+
+def test_normalization_is_shared_between_training_and_inference() -> None:
+    normalized = normalize_per_window(torch.zeros((1, 1, TIME_BINS, FREQUENCY_BINS)))
+    assert normalized.shape == (1, 1, TIME_BINS, FREQUENCY_BINS)

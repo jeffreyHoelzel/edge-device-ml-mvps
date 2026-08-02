@@ -8,6 +8,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
+from contract import FREQUENCY_BINS, TIME_BINS
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Visualize a .npy spectrogram or a dataset sample.")
@@ -17,8 +18,8 @@ def main() -> None:
     args = parser.parse_args()
     loaded = np.load(args.input)
     array = loaded["spectrograms"][args.index, 0] if isinstance(loaded, np.lib.npyio.NpzFile) else np.squeeze(loaded)
-    if array.shape != (64, 128):
-        raise ValueError(f"Expected a (64, 128) spectrogram, got {array.shape}")
+    if array.shape != (TIME_BINS, FREQUENCY_BINS):
+        raise ValueError(f"Expected a ({TIME_BINS}, {FREQUENCY_BINS}) spectrogram, got {array.shape}")
     args.output.parent.mkdir(parents=True, exist_ok=True)
     figure, axis = plt.subplots(figsize=(9, 4), constrained_layout=True)
     image = axis.imshow(array, aspect="auto", origin="lower", cmap="magma")

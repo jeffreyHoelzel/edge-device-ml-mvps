@@ -5,8 +5,10 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-NUM_CLASSES = 5
-NUM_IMPACT_LEVELS = 3
+from contract import CLASS_NAMES, IMPACT_NAMES
+
+NUM_CLASSES = len(CLASS_NAMES)
+NUM_IMPACT_LEVELS = len(IMPACT_NAMES)
 
 
 class RFInterferenceCNN(nn.Module):

@@ -9,16 +9,15 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from generate_data import CLASS_NAMES, IMPACT_NAMES
+from contract import CLASS_NAMES, FREQUENCY_BINS, IMPACT_NAMES, TIME_BINS, normalize_per_window
 from model import RFInterferenceCNN
-from train import normalize_per_window
 
 
 def load_spectrogram(path: Path) -> torch.Tensor:
     array = np.load(path).astype(np.float32)
     array = np.squeeze(array)
-    if array.shape != (64, 128):
-        raise ValueError(f"Expected one spectrogram shaped (64, 128), got {array.shape}")
+    if array.shape != (TIME_BINS, FREQUENCY_BINS):
+        raise ValueError(f"Expected one spectrogram shaped ({TIME_BINS}, {FREQUENCY_BINS}), got {array.shape}")
     return torch.from_numpy(array)[None, None, :, :]
 
 

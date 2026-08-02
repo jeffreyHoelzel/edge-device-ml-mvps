@@ -10,6 +10,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
+from contract import FREQUENCY_BINS, TIME_BINS, normalize_per_window
 from model import RFInterferenceCNN
 
 
@@ -45,8 +46,8 @@ def load_training_data(path: Path) -> tuple[torch.Tensor, torch.Tensor, torch.Te
         loaded.close()
 
     count = len(spectrograms)
-    if count < 1 or spectrograms.shape != (count, 1, 64, 128):
-        raise ValueError("spectrograms must have shape (N, 1, 64, 128) with N at least 1")
+    if count < 1 or spectrograms.shape != (count, 1, TIME_BINS, FREQUENCY_BINS):
+        raise ValueError(f"spectrograms must have shape (N, 1, {TIME_BINS}, {FREQUENCY_BINS}) with N at least 1")
     if classes.shape != (count,) or bounds.shape != (count, 2) or impacts.shape != (count,):
         raise ValueError("classes, bounds, and impacts must align with the spectrogram count")
     if not np.issubdtype(spectrograms.dtype, np.number) or not np.issubdtype(bounds.dtype, np.number):
@@ -67,12 +68,6 @@ def load_training_data(path: Path) -> tuple[torch.Tensor, torch.Tensor, torch.Te
         torch.from_numpy(bounds.astype(np.float32)),
         torch.from_numpy(impacts.astype(np.int64)),
     )
-
-
-def normalize_per_window(spectrograms: torch.Tensor) -> torch.Tensor:
-    mean = spectrograms.mean(dim=(2, 3), keepdim=True)
-    std = spectrograms.std(dim=(2, 3), keepdim=True).clamp_min(1e-5)
-    return (spectrograms - mean) / std
 
 
 def evaluate(model: RFInterferenceCNN, loader: DataLoader[tuple[torch.Tensor, ...]], device: torch.device) -> float:
