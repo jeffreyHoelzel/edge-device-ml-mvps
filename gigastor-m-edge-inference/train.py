@@ -58,7 +58,12 @@ def train(data_path: Path, model_path: Path, epochs: int = 30, batch_size: int =
             print(f"epoch={epoch + 1:02d} loss={running_loss / len(train_indices):.4f} validation_cause_accuracy={accuracy:.3f}")
 
     model.eval()
-    save_checkpoint(model, model_path)
+    save_checkpoint(model, model_path, {
+        "feature_names": raw["feature_names"].tolist(),
+        "cause_names": raw["cause_names"].tolist(),
+        "severity_names": raw["severity_names"].tolist(),
+        "seed": seed,
+    })
     print(f"Saved CPU checkpoint to {model_path}")
     return model
 

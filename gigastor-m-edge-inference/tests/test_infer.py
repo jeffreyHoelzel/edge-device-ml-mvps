@@ -39,6 +39,13 @@ def test_checkpoint_can_be_saved_and_reloaded(tmp_path) -> None:
     assert np.allclose(before.detach().numpy(), after.detach().numpy())
 
 
+def test_checkpoint_preserves_label_metadata(tmp_path) -> None:
+    model = RootCauseGRU(input_size=9)
+    path = tmp_path / "model.pt"
+    save_checkpoint(model, path, {"cause_names": ["a", "b", "c", "d", "e"]})
+    assert load_checkpoint(path).metadata["cause_names"][0] == "a"
+
+
 def test_model_exposes_binary_incident_head() -> None:
     model = RootCauseGRU(input_size=9)
     _, _, incident_logits = model(torch.rand(2, 3, 9))

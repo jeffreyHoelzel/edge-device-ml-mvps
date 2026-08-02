@@ -35,14 +35,16 @@ def build_event(
         raise ValueError("features must contain at least 3 windows for recent-window evidence")
     if baseline.shape != (len(FEATURE_NAMES),):
         raise ValueError(f"baseline must have shape ({len(FEATURE_NAMES)},)")
-    if not 1 <= top_k <= len(CAUSES):
-        raise ValueError(f"top_k must be between 1 and {len(CAUSES)}")
+    cause_names = tuple(model.metadata.get("cause_names", CAUSES))
+    severity_names = tuple(model.metadata.get("severity_names", SEVERITIES))
+    if not 1 <= top_k <= len(cause_names):
+        raise ValueError(f"top_k must be between 1 and {len(cause_names)}")
     if not 0.0 <= incident_threshold <= 1.0:
         raise ValueError("incident_threshold must be between 0 and 1")
     with torch.no_grad():
         cause_logits, severity_logits, incident_logits = model(torch.tensor(features[None], dtype=torch.float32))
         probabilities = torch.softmax(cause_logits[0], dim=0).cpu().numpy()
-        severity = SEVERITIES[int(severity_logits[0].argmax())]
+        severity = severity_names[int(severity_logits[0].argmax())]
         incident_probability = float(torch.softmax(incident_logits[0], dim=0)[1])
     ordered = np.argsort(probabilities)[::-1][:top_k]
     recent = features[-3:].mean(axis=0)  # a fixed, explicit recent-measurement window
@@ -65,7 +67,7 @@ def build_event(
         "incident_probability": round(incident_probability, 6),
         "severity": severity if detected else "none",
         "root_cause_ranking": [
-            {"cause": CAUSES[int(index)], "probability": round(float(probabilities[index]), 6)} for index in ordered
+            {"cause": cause_names[int(index)], "probability": round(float(probabilities[index]), 6)} for index in ordered
         ] if detected else [],
         "evidence": evidence,
     }
