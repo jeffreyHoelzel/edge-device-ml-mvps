@@ -9,6 +9,7 @@ from infer import build_event, load_jsonl_records, load_record_with_context
 from model import RootCauseGRU, load_checkpoint, save_checkpoint
 from stream_demo import validate_event_count
 from data_contract import validate_dataset
+from train import train
 
 
 def test_root_cause_probabilities_are_ranked_and_sum_to_one() -> None:
@@ -137,3 +138,9 @@ def test_jsonl_record_loader_validates_external_input(tmp_path) -> None:
     assert features.shape == (12, 9)
     assert baseline.shape == (9,)
     assert context["flow_id"] == "external-1"
+
+
+@pytest.mark.parametrize(("epochs", "batch_size"), [(0, 1), (1, 0)])
+def test_training_rejects_invalid_configuration(tmp_path, epochs, batch_size) -> None:
+    with pytest.raises(ValueError, match="at least 1"):
+        train(tmp_path / "missing.npz", tmp_path / "model.pt", epochs=epochs, batch_size=batch_size)
