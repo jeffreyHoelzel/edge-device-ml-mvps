@@ -1,0 +1,41 @@
+[project]
+name = "edge-device-ml-mvps"
+version = "0.1.0"
+description = "Monorepo of CPU-friendly ML MVPs for edge-device testing"
+readme = "README.md"
+authors = [
+    { name = "Jeffrey Hoelzel", email = "jeffreyhoelzeljr@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "matplotlib>=3.10",
+    "numpy>=2.5.1",
+    "onnx>=1.22.0",
+    "onnxruntime>=1.28.0",
+    "onnxscript>=0.7.1",
+    "pandas>=3.0.5",
+    "pyarrow>=25.0.0",
+    "pydantic>=2.13.4",
+    "scikit-learn>=1.9.0",
+    "scipy>=1.18.0",
+    "torch>=2.9.0",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+addopts = "-q"

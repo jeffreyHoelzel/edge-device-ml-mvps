@@ -1,0 +1,16 @@
+# Python environments and caches
+.venv/
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+
+# Generated ML data, checkpoints, and visualizations
+**/data/
+**/artifacts/
+
+# Local tooling
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.DS_Store
