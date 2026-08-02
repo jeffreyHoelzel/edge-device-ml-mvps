@@ -5,7 +5,7 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-from generate_data import CLASS_LABELS, DIRECTION_LABELS, MAX_SPEED_M_PER_MIN
+from generate_data import CLASS_LABELS, DIRECTION_LABELS, MAX_SPEED_M_PER_MIN, validate_signal
 
 
 class DASRiskModel(nn.Module):
@@ -27,6 +27,7 @@ class DASRiskModel(nn.Module):
 
     def forward(self, signal: torch.Tensor) -> dict[str, torch.Tensor]:
         """Accept [batch, time, distance] raw synthetic intensity data."""
+        validate_signal(signal)
         batch, steps, distance = signal.shape
         spatial = self.spatial_cnn(signal.reshape(batch * steps, 1, distance))
         sequence = spatial.flatten(1).reshape(batch, steps, -1)

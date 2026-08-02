@@ -18,6 +18,8 @@ def main() -> None:
     parser.add_argument("--scenario", choices=SCENARIOS, default="excavation_approaching")
     parser.add_argument("--updates", type=int, default=5)
     args = parser.parse_args()
+    if args.updates <= 0:
+        parser.error("--updates must be positive")
 
     rng = np.random.default_rng(123)
     signal, metadata = generate_sample(rng, scenario=args.scenario, time_steps=20 + args.updates)

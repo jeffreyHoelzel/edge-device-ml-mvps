@@ -9,7 +9,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
-from generate_data import MAX_SPEED_M_PER_MIN, SyntheticDASDataset
+from generate_data import DEFAULT_HORIZON_SECONDS, MAX_SPEED_M_PER_MIN, SyntheticDASDataset
 from model import DASRiskModel
 
 
@@ -28,12 +28,26 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=12)
     parser.add_argument("--samples", type=int, default=800)
     parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--horizon-seconds", type=int, default=DEFAULT_HORIZON_SECONDS)
     parser.add_argument("--model-path", type=Path, default=Path("artifacts/das_risk_model.pt"))
     args = parser.parse_args()
+    if args.epochs <= 0:
+        parser.error("--epochs must be positive")
+    if args.samples <= 0:
+        parser.error("--samples must be positive")
+    if args.batch_size <= 0:
+        parser.error("--batch-size must be positive")
+    if args.horizon_seconds <= 0:
+        parser.error("--horizon-seconds must be positive")
 
-    torch.manual_seed(7)
+    torch.manual_seed(args.seed)
     torch.set_num_threads(1)
-    loader = DataLoader(SyntheticDASDataset(args.samples), batch_size=args.batch_size, shuffle=True)
+    loader = DataLoader(
+        SyntheticDASDataset(args.samples, seed=args.seed, horizon_seconds=args.horizon_seconds),
+        batch_size=args.batch_size,
+        shuffle=True,
+    )
     model = DASRiskModel().cpu()
     optimizer = torch.optim.Adam(model.parameters(), lr=2e-3)
     model.train()

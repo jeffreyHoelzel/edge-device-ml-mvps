@@ -25,6 +25,33 @@ DEFAULT_HORIZON_SECONDS = 300
 TIME_STEP_SECONDS = 15
 
 
+def _require_finite(name: str, value: float) -> None:
+    if not np.isfinite(value):
+        raise ValueError(f"{name} must be finite")
+
+
+def validate_geometry(center_m: float, half_width_m: float) -> None:
+    _require_finite("protected zone center", center_m)
+    _require_finite("protected zone half width", half_width_m)
+    if half_width_m <= 0:
+        raise ValueError("protected zone half width must be positive")
+    lower_bound, upper_bound = protected_zone_bounds(center_m, half_width_m)
+    if lower_bound < 0 or upper_bound > FIBER_LENGTH_M:
+        raise ValueError("protected zone must fit within the modeled fiber")
+
+
+def validate_signal(signal: torch.Tensor) -> None:
+    """Validate the tensor contract accepted by DASRiskModel."""
+    if signal.ndim != 3:
+        raise ValueError("signal must have shape [batch, time, distance]")
+    if signal.shape[0] < 1 or signal.shape[1] < 1 or signal.shape[2] < 2:
+        raise ValueError("signal requires at least one batch, one time step, and two distance bins")
+    if not signal.is_floating_point():
+        raise ValueError("signal must use a floating-point dtype")
+    if not torch.isfinite(signal).all():
+        raise ValueError("signal must contain only finite values")
+
+
 @dataclass(frozen=True)
 class EventMetadata:
     scenario: str
@@ -93,6 +120,13 @@ def generate_sample(
     scenario = scenario or str(rng.choice(SCENARIOS))
     if scenario not in SCENARIOS:
         raise ValueError(f"Unknown scenario: {scenario}")
+    if time_steps < 1:
+        raise ValueError("time_steps must be positive")
+    if distance_bins < 2:
+        raise ValueError("distance_bins must be at least 2")
+    if horizon_seconds <= 0:
+        raise ValueError("horizon_seconds must be positive")
+    validate_geometry(protected_zone_center_m, protected_zone_half_width_m)
     location = float(rng.uniform(150.0, FIBER_LENGTH_M - 150.0))
     class_index, direction_index, direction, base_speed = _scenario_labels(scenario, location, protected_zone_center_m)
     speed = 0.0 if base_speed == 0 else float(np.clip(rng.normal(base_speed, 1.0), 1.0, MAX_SPEED_M_PER_MIN))
@@ -148,6 +182,8 @@ class SyntheticDASDataset(Dataset[dict[str, torch.Tensor]]):
     """Deterministic in-memory dataset intended for a fast CPU demonstration."""
 
     def __init__(self, num_samples: int, seed: int = 7, **sample_kwargs: object) -> None:
+        if num_samples <= 0:
+            raise ValueError("num_samples must be positive")
         rng = np.random.default_rng(seed)
         self.samples = [generate_sample(rng, **sample_kwargs) for _ in range(num_samples)]
 

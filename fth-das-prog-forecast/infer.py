@@ -13,12 +13,12 @@ from generate_data import (
     CLASS_LABELS,
     DEFAULT_HORIZON_SECONDS,
     DIRECTION_LABELS,
-    FIBER_LENGTH_M,
     PROTECTED_ZONE_CENTER_M,
     PROTECTED_ZONE_HALF_WIDTH_M,
     SCENARIOS,
     generate_sample,
     project_future_location,
+    validate_geometry,
 )
 from model import DASRiskModel
 
@@ -39,6 +39,11 @@ def forecast(
     protected_zone_center_m: float = PROTECTED_ZONE_CENTER_M,
     protected_zone_half_width_m: float = PROTECTED_ZONE_HALF_WIDTH_M,
 ) -> dict[str, object]:
+    if not np.isfinite(current_location_m) or not 0 <= current_location_m <= 2_500:
+        raise ValueError("current_location_m must be finite and within the modeled fiber")
+    if horizon_seconds <= 0:
+        raise ValueError("horizon_seconds must be positive")
+    validate_geometry(protected_zone_center_m, protected_zone_half_width_m)
     with torch.inference_mode():
         outputs = model(torch.from_numpy(signal).unsqueeze(0))
     event_type = CLASS_LABELS[int(outputs["event_logits"].argmax(dim=1).item())]
