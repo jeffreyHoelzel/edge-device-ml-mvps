@@ -17,13 +17,13 @@ uv sync --dev
 ## Generate training data
 
 ```bash
-uv run --directory gigastor-m-edge-infra python generate_data.py --output data/synthetic_flows.npz --samples 2000 --seed 7
+uv run --directory gigastor-m-edge-inference python generate_data.py --output data/synthetic_flows.npz --samples 2000 --seed 7
 ```
 
 ## Train and save the model
 
 ```bash
-uv run --directory gigastor-m-edge-infra python train.py --data data/synthetic_flows.npz --model artifacts/observer_gru.pt --epochs 30
+uv run --directory gigastor-m-edge-inference python train.py --data data/synthetic_flows.npz --model artifacts/observer_gru.pt --epochs 30
 ```
 
 The checkpoint includes the model configuration, weights, and feature-normalization statistics. `infer.py` and `stream_demo.py` reload it from disk with `map_location="cpu"`.
@@ -31,7 +31,7 @@ The checkpoint includes the model configuration, weights, and feature-normalizat
 ## Test
 
 ```bash
-PYTHONPATH=gigastor-m-edge-infra uv run pytest gigastor-m-edge-infra/tests
+PYTHONPATH=gigastor-m-edge-inference uv run pytest gigastor-m-edge-inference/tests
 ```
 
 The tests verify that root-cause probabilities sum to approximately one, rankings are descending, and saved checkpoints reload without changing logits.
@@ -39,7 +39,7 @@ The tests verify that root-cause probabilities sum to approximately one, ranking
 ## Infer one rolling flow record
 
 ```bash
-uv run --directory gigastor-m-edge-infra python infer.py --model artifacts/observer_gru.pt --data data/synthetic_flows.npz --index 0 --top-k 3
+uv run --directory gigastor-m-edge-inference python infer.py --model artifacts/observer_gru.pt --data data/synthetic_flows.npz --index 0 --top-k 3
 ```
 
 The command writes structured JSON to stdout, for example:
@@ -64,7 +64,7 @@ The command writes structured JSON to stdout, for example:
 ## Stream demonstration
 
 ```bash
-uv run --directory gigastor-m-edge-infra python stream_demo.py --model artifacts/observer_gru.pt --data data/synthetic_flows.npz --events 5
+uv run --directory gigastor-m-edge-inference python stream_demo.py --model artifacts/observer_gru.pt --data data/synthetic_flows.npz --events 5
 ```
 
 This prints one JSON incident event per synthetic rolling flow record, suitable for piping to an observer or log collector.
