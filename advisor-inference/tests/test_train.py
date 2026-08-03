@@ -44,6 +44,28 @@ def test_load_training_data_rejects_invalid_contract(tmp_path, overrides, messag
         load_training_data(path)
 
 
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        (
+            {
+                "classes": np.array([0, 0], dtype=np.int64),
+                "bounds": np.array([[0.0, 0.0], [0.1, 0.2]], dtype=np.float32),
+                "impacts": np.array([0, 0], dtype=np.int64),
+            },
+            "no_interference",
+        ),
+        ({"impacts": np.array([1, 1], dtype=np.int64)}, "no_interference"),
+        ({"bounds": np.array([[0.0, 0.0], [0.4, 0.4]], dtype=np.float32)}, "non-empty"),
+    ],
+)
+def test_load_training_data_rejects_invalid_label_semantics(tmp_path, overrides, message: str) -> None:
+    path = tmp_path / "invalid-labels.npz"
+    _write_dataset(path, **overrides)
+    with pytest.raises(ValueError, match=message):
+        load_training_data(path)
+
+
 def test_positive_argument_types_reject_invalid_values() -> None:
     with pytest.raises(Exception):
         positive_int("0")

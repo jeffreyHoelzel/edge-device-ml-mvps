@@ -71,6 +71,12 @@ def load_training_data(path: Path) -> tuple[torch.Tensor, torch.Tensor, torch.Te
         raise ValueError("impacts must contain IDs from 0 to 2")
     if np.any(bounds < 0.0) or np.any(bounds > 1.0) or np.any(bounds[:, 0] > bounds[:, 1]):
         raise ValueError("bounds must be ordered and normalized to [0, 1]")
+    no_interference_mask = classes == 0
+    if np.any(bounds[no_interference_mask] != 0.0) or np.any(impacts[no_interference_mask] != 0):
+        raise ValueError("no_interference samples must use zero bounds and low impact")
+    positive_mask = ~no_interference_mask
+    if np.any(bounds[positive_mask, 0] >= bounds[positive_mask, 1]):
+        raise ValueError("interference samples must use non-empty frequency bounds")
     return (
         torch.from_numpy(spectrograms.astype(np.float32)),
         torch.from_numpy(classes.astype(np.int64)),
