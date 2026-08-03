@@ -98,6 +98,10 @@ def validate_dataset(data: dict[str, np.ndarray], metadata: dict[str, object] | 
             raise ValueError("dataset feature order does not match this model")
         if metadata.get("sequence_length") != x.shape[1]:
             raise ValueError("dataset metadata sequence length does not match x")
+        if metadata.get("sample_interval_seconds") != SAMPLE_INTERVAL_SECONDS:
+            raise ValueError("dataset sample interval does not match this model")
+        if metadata.get("forecast_horizon_seconds") != FORECAST_HORIZON_SECONDS:
+            raise ValueError("dataset forecast horizon does not match this model")
 
 
 def load_or_generate(path: Path, samples: int, sequence_length: int, seed: int) -> dict[str, np.ndarray]:
