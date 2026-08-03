@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -49,13 +50,18 @@ def _apply_incident(sequence: np.ndarray, cause: int, intensity: float) -> None:
 
 def generate_dataset(samples: int = 2_000, sequence_length: int = 12, seed: int = 7) -> dict[str, np.ndarray]:
     """Return labelled incident sequences and each sequence's pre-incident baseline."""
-    if samples < len(CAUSES):
-        raise ValueError(f"samples must be at least {len(CAUSES)}")
+    class_count = len(CAUSES) + 1  # five incident causes plus normal traffic
+    if samples < class_count:
+        raise ValueError(f"samples must be at least {class_count}")
+    if sequence_length < 3:
+        raise ValueError("sequence_length must be at least 3 for recent-window evidence")
     rng = np.random.default_rng(seed)
     features = np.empty((samples, sequence_length, len(FEATURE_NAMES)), dtype=np.float32)
     baselines = np.empty((samples, len(FEATURE_NAMES)), dtype=np.float32)
-    causes = np.arange(samples, dtype=np.int64) % len(CAUSES)
-    rng.shuffle(causes)
+    classes = np.arange(samples, dtype=np.int64) % class_count
+    rng.shuffle(classes)
+    incident = classes < len(CAUSES)
+    causes = np.where(incident, classes, 0).astype(np.int64)
     severity = rng.integers(0, len(SEVERITIES), size=samples, dtype=np.int64)
 
     for index in range(samples):
@@ -63,8 +69,11 @@ def generate_dataset(samples: int = 2_000, sequence_length: int = 12, seed: int 
         baseline = np.maximum(baseline, 1e-5)
         noise = rng.normal(0.0, BASELINE_STD * 0.30, (sequence_length, len(FEATURE_NAMES)))
         sequence = baseline + noise
-        intensity = (0.45, 0.75, 1.05)[severity[index]]
-        _apply_incident(sequence, int(causes[index]), intensity)
+        if incident[index]:
+            intensity = (0.45, 0.75, 1.05)[severity[index]]
+            _apply_incident(sequence, int(causes[index]), intensity)
+        else:
+            severity[index] = 0
         # Rates, counts, and volume cannot be negative.
         sequence = np.maximum(sequence, 1e-6)
         features[index] = sequence
@@ -75,9 +84,17 @@ def generate_dataset(samples: int = 2_000, sequence_length: int = 12, seed: int 
         "baselines": baselines,
         "causes": causes,
         "severity": severity,
+        "incident": incident.astype(np.int64),
         "feature_names": np.asarray(FEATURE_NAMES),
         "cause_names": np.asarray(CAUSES),
         "severity_names": np.asarray(SEVERITIES),
+        "flow_ids": np.asarray([f"synthetic-flow-{index:06d}" for index in range(samples)]),
+        "device_ids": np.asarray(["synthetic-edge-01"] * samples),
+        "interfaces": np.asarray(["eth0"] * samples),
+        "window_ends": np.asarray([
+            (datetime(2026, 1, 1, tzinfo=UTC) + timedelta(minutes=index)).isoformat().replace("+00:00", "Z")
+            for index in range(samples)
+        ]),
     }
 
 

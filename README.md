@@ -4,7 +4,7 @@ This monorepo contains CPU-friendly machine-learning MVPs for testing edge-devic
 
 - `advisor-inference`: RF-interference classification and localization.
 - `fth-das-prog-forecast`: distributed-acoustic-sensing risk forecasting.
-- `gigastor-m-edge-infra`: application-performance root-cause ranking.
+- `gigastor-m-edge-inference`: application-performance root-cause ranking.
 - `xedge-pred-assurance`: predictive network service assurance.
 
 ## Setup
@@ -29,6 +29,6 @@ Run each MVP's tests independently so its local, script-style imports resolve co
 ```bash
 PYTHONPATH=advisor-inference uv run pytest advisor-inference/tests
 PYTHONPATH=fth-das-prog-forecast uv run pytest fth-das-prog-forecast/tests
-PYTHONPATH=gigastor-m-edge-infra uv run pytest gigastor-m-edge-infra/tests
+PYTHONPATH=gigastor-m-edge-inference uv run pytest gigastor-m-edge-inference/tests
 PYTHONPATH=xedge-pred-assurance uv run pytest xedge-pred-assurance/tests
 ```

@@ -2,7 +2,7 @@
 
 A small, CPU-only PyTorch MVP that ranks likely causes of application-performance degradation from synthetic rolling packet-derived flow summaries. It deliberately uses a compact feature encoder and GRU rather than external telemetry, infrastructure, or UI.
 
-The five synthetic incident classes are `server_delay`, `wan_congestion`, `packet_loss`, `dns_delay`, and `client_side_delay`. Each flow sequence contains 12 rolling summaries with network RTT, server response time, DNS time, TCP connection time, retransmission rate, packet loss, byte volume, flow count, and interface utilization.
+The five synthetic incident classes are `server_delay`, `wan_congestion`, `packet_loss`, `dns_delay`, and `client_side_delay`; deterministic normal traffic is also generated. Each flow sequence contains 12 rolling summaries with network RTT, server response time, DNS time, TCP connection time, retransmission rate, packet loss, byte volume, flow count, and interface utilization.
 
 Evidence is intentionally separate from the model: the last three measurements are compared deterministically with each record's pre-incident baseline. A ratio at or above 1.25 is `elevated`, at or below 0.75 is `reduced`, and otherwise it is `normal` (or `stable` for RTT).
 
@@ -17,21 +17,21 @@ uv sync --dev
 ## Generate training data
 
 ```bash
-uv run --directory gigastor-m-edge-infra python generate_data.py --output data/synthetic_flows.npz --samples 2000 --seed 7
+uv run --directory gigastor-m-edge-inference python generate_data.py --output data/synthetic_flows.npz --samples 2000 --seed 7
 ```
 
 ## Train and save the model
 
 ```bash
-uv run --directory gigastor-m-edge-infra python train.py --data data/synthetic_flows.npz --model artifacts/observer_gru.pt --epochs 30
+uv run --directory gigastor-m-edge-inference python train.py --data data/synthetic_flows.npz --model artifacts/observer_gru.pt --epochs 30
 ```
 
-The checkpoint includes the model configuration, weights, and feature-normalization statistics. `infer.py` and `stream_demo.py` reload it from disk with `map_location="cpu"`.
+The checkpoint includes the model configuration, weights, feature-normalization statistics, schema labels, seed, and validation metrics. `infer.py` and `stream_demo.py` reload it from disk with `map_location="cpu"`.
 
 ## Test
 
 ```bash
-PYTHONPATH=gigastor-m-edge-infra uv run pytest gigastor-m-edge-infra/tests
+PYTHONPATH=gigastor-m-edge-inference uv run pytest gigastor-m-edge-inference/tests
 ```
 
 The tests verify that root-cause probabilities sum to approximately one, rankings are descending, and saved checkpoints reload without changing logits.
@@ -39,14 +39,17 @@ The tests verify that root-cause probabilities sum to approximately one, ranking
 ## Infer one rolling flow record
 
 ```bash
-uv run --directory gigastor-m-edge-infra python infer.py --model artifacts/observer_gru.pt --data data/synthetic_flows.npz --index 0 --top-k 3
+uv run --directory gigastor-m-edge-inference python infer.py --model artifacts/observer_gru.pt --data data/synthetic_flows.npz --index 0 --top-k 3
 ```
 
 The command writes structured JSON to stdout, for example:
 
 ```json
 {
+  "schema_version": "1.1",
   "event_type": "application_performance_incident",
+  "incident_detected": true,
+  "incident_probability": 0.94,
   "severity": "major",
   "root_cause_ranking": [
     {"cause": "server_delay", "probability": 0.72},
@@ -61,10 +64,14 @@ The command writes structured JSON to stdout, for example:
 }
 ```
 
+Incident events retain the original ranking and categorical evidence fields and add confidence, probability-mass, numeric evidence details, and flow context. Records below `--incident-threshold` emit `application_performance_status` with `incident_detected: false`, instead of a fabricated root cause. This is a synthetic operational MVP: validate the JSONL input contract and model behavior against real telemetry before production use.
+
 ## Stream demonstration
 
 ```bash
-uv run --directory gigastor-m-edge-infra python stream_demo.py --model artifacts/observer_gru.pt --data data/synthetic_flows.npz --events 5
+uv run --directory gigastor-m-edge-inference python stream_demo.py --model artifacts/observer_gru.pt --data data/synthetic_flows.npz --events 5
 ```
 
 This prints one JSON incident event per synthetic rolling flow record, suitable for piping to an observer or log collector.
+
+To stream externally prepared records, pass `--input records.jsonl`. Each non-empty line must contain `features` (a rolling `windows x 9` numeric array), `baseline` (nine numeric values), and an optional `context` object.
