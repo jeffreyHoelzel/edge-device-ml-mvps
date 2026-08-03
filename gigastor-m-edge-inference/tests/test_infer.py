@@ -140,6 +140,22 @@ def test_jsonl_record_loader_validates_external_input(tmp_path) -> None:
     assert context["flow_id"] == "external-1"
 
 
+@pytest.mark.parametrize(
+    ("features", "baseline", "message"),
+    [
+        ([[1.0] * 9] * 2, [1.0] * 9, "features must have shape"),
+        ([1.0] * 9, [1.0] * 9, "features must have shape"),
+        ([[1.0] * 9] * 3, [1.0] * 8, "baseline must have shape"),
+        ([[float("nan")] * 9] * 3, [1.0] * 9, "values must be finite"),
+    ],
+)
+def test_jsonl_record_loader_rejects_invalid_record_shapes(tmp_path, features, baseline, message) -> None:
+    path = tmp_path / "records.jsonl"
+    path.write_text(json.dumps({"features": features, "baseline": baseline}) + "\n")
+    with pytest.raises(ValueError, match=message):
+        load_jsonl_records(path)
+
+
 @pytest.mark.parametrize(("epochs", "batch_size"), [(0, 1), (1, 0)])
 def test_training_rejects_invalid_configuration(tmp_path, epochs, batch_size) -> None:
     with pytest.raises(ValueError, match="at least 1"):

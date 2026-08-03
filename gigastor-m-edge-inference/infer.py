@@ -127,6 +127,10 @@ def load_jsonl_records(path: Path) -> list[tuple[np.ndarray, np.ndarray, dict[st
             context = {str(key): str(item) for key, item in value.get("context", {}).items()}
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
             raise ValueError(f"invalid JSONL record on line {line_number}: {error}") from error
+        if features.ndim != 2 or features.shape[0] < 3 or features.shape[1:] != (len(FEATURE_NAMES),):
+            raise ValueError(f"invalid JSONL record on line {line_number}: features must have shape (windows >= 3, {len(FEATURE_NAMES)})")
+        if baseline.shape != (len(FEATURE_NAMES),):
+            raise ValueError(f"invalid JSONL record on line {line_number}: baseline must have shape ({len(FEATURE_NAMES)},)")
         if not np.isfinite(features).all() or not np.isfinite(baseline).all():
             raise ValueError(f"invalid JSONL record on line {line_number}: values must be finite")
         records.append((features, baseline, context))
