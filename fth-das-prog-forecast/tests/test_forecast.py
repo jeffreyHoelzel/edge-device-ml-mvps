@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 import torch
 
 from generate_data import TIME_STEP_SECONDS, generate_sample, project_future_location
@@ -32,6 +33,22 @@ def test_stationary_forecast_keeps_current_location() -> None:
     result = forecast(FixedOutputModel(direction_index=0, speed=9.0), np.zeros((20, 96), dtype=np.float32), 1_800, 300)
     assert result["estimated_speed_m_per_min"] == 0.0
     assert result["predicted_future_location_m"] == 1_800.0
+
+
+@pytest.mark.parametrize(
+    ("direction_index", "current_location", "expected_location"),
+    [(1, 1_975, 1_995.0), (2, 1_975, 1_955.0), (1, 2_000, 1_980.0), (2, 2_000, 2_020.0)],
+)
+def test_nonstationary_forecasts_continue_moving_inside_the_protected_zone(
+    direction_index: int, current_location: float, expected_location: float
+) -> None:
+    result = forecast(
+        FixedOutputModel(direction_index=direction_index, speed=4.0),
+        np.zeros((20, 96), dtype=np.float32),
+        current_location,
+        300,
+    )
+    assert result["predicted_future_location_m"] == expected_location
 
 
 def test_generated_future_location_starts_at_window_end() -> None:

@@ -78,9 +78,7 @@ def forecast(
         "away_from_asset": "moving_away_from_protected_asset",
         "stationary": "stationary",
     }[direction]
-    lower_bound = protected_zone_center_m - protected_zone_half_width_m
-    upper_bound = protected_zone_center_m + protected_zone_half_width_m
-    toward_sign = 1 if current_location_m < lower_bound else -1 if current_location_m > upper_bound else 0
+    toward_sign = 1 if current_location_m < protected_zone_center_m else -1
     direction_sign = {
         "stationary": 0,
         "toward_asset": toward_sign,
