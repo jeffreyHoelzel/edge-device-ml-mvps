@@ -2,6 +2,12 @@
 
 > **Disclaimer:** These MVPs were created using only publicly available VIAVI product information. All datasets, measurements, telemetry, and examples are synthetic; no real, customer, confidential, proprietary, or VIAVI operational data was used. These materials are illustrative MVPs only and are not affiliated with or endorsed by VIAVI.
 
+## Executive Summary
+
+This MVP demonstrates an edge root-cause-ranking workflow for application-performance incidents. It converts rolling synthetic packet-derived flow summaries into an incident probability, severity, ranked likely causes, and deterministic evidence, showing how a high volume of network observations can become a compact diagnosis for an operator or downstream workflow. It does not ingest real network telemetry or establish production diagnostic accuracy.
+
+Its intended VIAVI target is Observer GigaStor M. This is a conceptual integration target, not a claim of deployment, compatibility, or validation on the product.
+
 A small, CPU-only PyTorch MVP that ranks likely causes of application-performance degradation from synthetic rolling packet-derived flow summaries. It deliberately uses a compact feature encoder and GRU rather than external telemetry, infrastructure, or UI.
 
 The five synthetic incident classes are `server_delay`, `wan_congestion`, `packet_loss`, `dns_delay`, and `client_side_delay`; deterministic normal traffic is also generated. Each flow sequence contains 12 rolling summaries with network RTT, server response time, DNS time, TCP connection time, retransmission rate, packet loss, byte volume, flow count, and interface utilization.
