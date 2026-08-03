@@ -1,7 +1,16 @@
 import numpy as np
 import pytest
 
-from generate_data import FORECAST_HORIZON_SECONDS, FORECAST_STEPS, generate_sequence, make_dataset, normalize_features
+from generate_data import (
+    CAUSE_NAMES,
+    FORECAST_HORIZON_SECONDS,
+    FORECAST_STEPS,
+    MIN_TRAINING_SAMPLES,
+    SEVERITY_NAMES,
+    generate_sequence,
+    make_dataset,
+    normalize_features,
+)
 
 
 def test_dataset_is_deterministic_and_has_fixed_forecast_horizon() -> None:
@@ -22,6 +31,16 @@ def test_dataset_labels_are_for_a_future_target() -> None:
     assert set(np.unique(data["incident"])).issubset({0.0, 1.0})
     assert np.all((data["cause"] >= 0) & (data["cause"] < 4))
     assert np.all((data["severity"] >= 0) & (data["severity"] < 3))
+
+
+def test_training_sized_dataset_covers_every_diagnosis_stratum() -> None:
+    data = make_dataset(MIN_TRAINING_SAMPLES, 8, seed=3)
+    incident = data["incident"].astype(bool)
+
+    assert np.count_nonzero(~incident) >= 2
+    for cause_id in range(len(CAUSE_NAMES)):
+        for severity_id in range(len(SEVERITY_NAMES)):
+            assert np.count_nonzero(incident & (data["cause"] == cause_id) & (data["severity"] == severity_id)) >= 2
 
 
 def test_raw_kpis_remain_physical_with_profile_and_benign_burst_variation() -> None:

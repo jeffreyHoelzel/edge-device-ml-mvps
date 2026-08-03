@@ -37,7 +37,7 @@ This produces normal windows plus RF interference, congestion, backhaul degradat
 uv run --directory xedge-pred-assurance python train.py --data data/synthetic_train.npz --output artifacts/model.pt
 ```
 
-`train.py` is deterministic for a given seed and trains on CPU only. If the data path does not exist, it generates the synthetic data automatically. Training uses a deterministic, stratified holdout and only saves a model that meets fixed synthetic-data quality gates for forecast discrimination, alert precision/recall, diagnosis accuracy, and calibration. The saved checkpoint contains the model plus the complete preprocessing, cadence, horizon, label, threshold, and evaluation contract.
+`train.py` is deterministic for a given seed and trains on CPU only. If the data path does not exist, it generates the synthetic data automatically. Generated training datasets include at least two normal examples and two examples for every cause/severity diagnosis stratum (requiring at least 26 samples). Training uses a deterministic, stratified holdout and only saves a model that meets fixed synthetic-data quality gates for forecast discrimination, alert precision/recall, diagnosis accuracy, and calibration. The saved checkpoint contains the model plus the complete preprocessing, cadence, horizon, label, threshold, and evaluation contract.
 
 Checkpoints and datasets are versioned contracts. Retrain models after changing this MVP; old unversioned artifacts are rejected rather than interpreted with changed preprocessing.
 

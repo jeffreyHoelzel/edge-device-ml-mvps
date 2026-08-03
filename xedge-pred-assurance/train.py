@@ -21,6 +21,7 @@ from generate_data import (
     FEATURE_NAMES,
     FEATURE_STD,
     FORECAST_HORIZON_SECONDS,
+    MIN_TRAINING_SAMPLES,
     SAMPLE_INTERVAL_SECONDS,
     SEVERITY_NAMES,
     make_dataset,
@@ -104,6 +105,21 @@ def validate_dataset(data: dict[str, np.ndarray], metadata: dict[str, object] | 
             raise ValueError("dataset forecast horizon does not match this model")
 
 
+def validate_training_coverage(data: dict[str, np.ndarray]) -> None:
+    """Require enough examples for every stratified train/evaluation partition."""
+    incident = data["incident"].astype(bool)
+    if np.count_nonzero(~incident) < 2:
+        raise ValueError("dataset needs at least two normal examples")
+    for cause_id, cause_name in enumerate(CAUSE_NAMES):
+        for severity_id, severity_name in enumerate(SEVERITY_NAMES):
+            count = np.count_nonzero(incident & (data["cause"] == cause_id) & (data["severity"] == severity_id))
+            if count < 2:
+                raise ValueError(
+                    "dataset needs at least two examples for "
+                    f"{cause_name}/{severity_name} incident stratum"
+                )
+
+
 def load_or_generate(path: Path, samples: int, sequence_length: int, seed: int) -> dict[str, np.ndarray]:
     if path.exists():
         try:
@@ -113,16 +129,18 @@ def load_or_generate(path: Path, samples: int, sequence_length: int, seed: int) 
         except (KeyError, json.JSONDecodeError, ValueError) as error:
             raise ValueError(f"{path} is not a valid predictive-assurance dataset; regenerate it") from error
         validate_dataset(data, metadata)
+        validate_training_coverage(data)
         return data
     data = make_dataset(samples, sequence_length, seed)
     validate_dataset(data)
+    validate_training_coverage(data)
     save_dataset(path, data)
     return data
 
 
 def validate_training_options(args: argparse.Namespace) -> None:
-    if args.samples < 8:
-        raise ValueError("--samples must be at least 8")
+    if args.samples < MIN_TRAINING_SAMPLES:
+        raise ValueError(f"--samples must be at least {MIN_TRAINING_SAMPLES} for training coverage")
     if args.sequence_length < 8:
         raise ValueError("--sequence-length must be at least 8")
     if args.epochs < 1:

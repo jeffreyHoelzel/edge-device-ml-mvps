@@ -23,6 +23,7 @@ SAMPLE_INTERVAL_SECONDS = 5
 FORECAST_HORIZON_SECONDS = 60
 FORECAST_STEPS = FORECAST_HORIZON_SECONDS // SAMPLE_INTERVAL_SECONDS
 DATASET_FORMAT_VERSION = 2
+MIN_TRAINING_SAMPLES = 2 + 2 * len(CAUSE_NAMES) * len(SEVERITY_NAMES)
 
 # Stable scaling makes training and streaming use exactly the same representation.
 FEATURE_MEAN = np.array([35.0, 4.0, 0.1, 35.0, 80.0, 82.0, 1.0], dtype=np.float32)
@@ -150,14 +151,35 @@ def make_dataset(samples: int, sequence_length: int, seed: int = 7) -> dict[str,
     incident = np.empty(samples, dtype=np.float32)
     cause = np.zeros(samples, dtype=np.int64)
     severity = np.zeros(samples, dtype=np.int64)
+    labels: list[tuple[int | None, int]] = []
+    if samples >= MIN_TRAINING_SAMPLES:
+        labels = [
+            (cause_id, severity_id)
+            for cause_id in range(len(CAUSE_NAMES))
+            for severity_id in range(len(SEVERITY_NAMES))
+            for _ in range(2)
+        ]
+        target_incidents = max(len(labels), round(samples * 0.58))
+        labels.extend(
+            (int(rng.integers(len(CAUSE_NAMES))), int(rng.choice(3, p=(0.28, 0.48, 0.24))))
+            for _ in range(target_incidents - len(labels))
+        )
+        labels.extend((None, 0) for _ in range(samples - target_incidents))
+        labels = [labels[index] for index in rng.permutation(samples)]
+    else:
+        for _ in range(samples):
+            if rng.random() < 0.58:
+                labels.append((int(rng.integers(len(CAUSE_NAMES))), int(rng.choice(3, p=(0.28, 0.48, 0.24)))))
+            else:
+                labels.append((None, 0))
 
-    for row in range(samples):
-        is_incident = rng.random() < 0.58
+    for row, (cause_id, severity_id) in enumerate(labels):
+        is_incident = cause_id is not None
         incident[row] = float(is_incident)
         if is_incident:
-            cause[row] = int(rng.integers(len(CAUSE_NAMES)))
-            severity[row] = int(rng.choice(3, p=(0.28, 0.48, 0.24)))
-            raw[row] = generate_forecast_window(sequence_length, int(cause[row]), int(severity[row]), rng)
+            cause[row] = cause_id
+            severity[row] = severity_id
+            raw[row] = generate_forecast_window(sequence_length, cause_id, severity_id, rng)
         else:
             raw[row] = generate_forecast_window(sequence_length, None, rng=rng)
 
@@ -192,8 +214,10 @@ def main() -> None:
     parser.add_argument("--sequence-length", type=int, default=30)
     parser.add_argument("--seed", type=int, default=7)
     args = parser.parse_args()
-    if args.samples < 8 or args.sequence_length < 8:
-        raise ValueError("--samples and --sequence-length must both be at least 8")
+    if args.samples < MIN_TRAINING_SAMPLES:
+        raise ValueError(f"--samples must be at least {MIN_TRAINING_SAMPLES} for training coverage")
+    if args.sequence_length < 8:
+        raise ValueError("--sequence-length must be at least 8")
 
     data = make_dataset(args.samples, args.sequence_length, args.seed)
     save_dataset(args.output, data)
