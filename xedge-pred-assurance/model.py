@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -44,6 +45,46 @@ class LoadedModel:
     evaluation_metrics: dict[str, float]
 
 
+def validate_training_contract(contract: TrainingContract, config: ModelConfig) -> None:
+    """Reject checkpoint metadata that cannot safely drive model inference."""
+    for name, value in (
+        ("input_features", config.input_features),
+        ("conv_channels", config.conv_channels),
+        ("gru_hidden", config.gru_hidden),
+        ("cause_classes", config.cause_classes),
+        ("severity_classes", config.severity_classes),
+        ("sequence_length", contract.sequence_length),
+        ("sample_interval_seconds", contract.sample_interval_seconds),
+        ("forecast_horizon_seconds", contract.forecast_horizon_seconds),
+    ):
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ValueError(f"checkpoint {name} must be a positive integer")
+    if len(contract.feature_names) != config.input_features:
+        raise ValueError("checkpoint feature names do not match model input features")
+    if any(not isinstance(name, str) or not name for name in contract.feature_names):
+        raise ValueError("checkpoint feature names must be non-empty strings")
+    if len(set(contract.feature_names)) != len(contract.feature_names):
+        raise ValueError("checkpoint feature names must be unique")
+    if len(contract.feature_mean) != config.input_features or len(contract.feature_std) != config.input_features:
+        raise ValueError("checkpoint feature scaling does not match model input features")
+    if not all(isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) for value in contract.feature_mean):
+        raise ValueError("checkpoint feature means must be finite numbers")
+    if not all(isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0 for value in contract.feature_std):
+        raise ValueError("checkpoint feature standard deviations must be positive finite numbers")
+    for name, labels, classes in (
+        ("cause", contract.cause_names, config.cause_classes),
+        ("severity", contract.severity_names, config.severity_classes),
+    ):
+        if len(labels) != classes:
+            raise ValueError(f"checkpoint {name} labels do not match model output classes")
+        if any(not isinstance(label, str) or not label for label in labels) or len(set(labels)) != len(labels):
+            raise ValueError(f"checkpoint {name} labels must be unique non-empty strings")
+    if not isinstance(contract.incident_threshold, (int, float)) or isinstance(contract.incident_threshold, bool) or not math.isfinite(contract.incident_threshold) or not 0.0 <= contract.incident_threshold <= 1.0:
+        raise ValueError("checkpoint incident threshold must be a finite value between 0 and 1")
+    if not isinstance(contract.model_version, str) or not contract.model_version:
+        raise ValueError("checkpoint model version must be a non-empty string")
+
+
 class PredictiveAssuranceModel(nn.Module):
     def __init__(self, config: ModelConfig = ModelConfig()) -> None:
         super().__init__()
@@ -82,6 +123,7 @@ def save_model(
     contract: TrainingContract,
     evaluation_metrics: dict[str, float] | None = None,
 ) -> None:
+    validate_training_contract(contract, model.config)
     path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
         {
@@ -116,9 +158,10 @@ def load_model(path: Path, device: str = "cpu") -> LoadedModel:
             incident_threshold=contract_values["incident_threshold"],
             model_version=contract_values["model_version"],
         )
+        validate_training_contract(contract, config)
         model = PredictiveAssuranceModel(config)
         model.load_state_dict(checkpoint["state_dict"])
-    except (KeyError, TypeError, RuntimeError) as error:
+    except (KeyError, TypeError, RuntimeError, ValueError) as error:
         raise ValueError(f"{path} has an invalid predictive-assurance checkpoint contract") from error
     model.to(device).eval()
     metrics = checkpoint.get("evaluation_metrics", {})
