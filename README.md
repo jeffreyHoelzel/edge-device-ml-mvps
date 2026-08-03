@@ -1,5 +1,7 @@
 # Edge Device ML MVPs
 
+> **Disclaimer:** These MVPs were created using only publicly available VIAVI product information. All datasets, measurements, telemetry, and examples are synthetic; no real, customer, confidential, proprietary, or VIAVI operational data was used. These materials are illustrative MVPs only and are not affiliated with or endorsed by VIAVI.
+
 This monorepo contains CPU-friendly machine-learning MVPs for testing edge-device workflows:
 
 - `advisor-inference`: RF-interference classification and localization.

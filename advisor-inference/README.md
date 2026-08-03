@@ -1,5 +1,7 @@
 # RF Interference Intelligence MVP
 
+> **Disclaimer:** These MVPs were created using only publicly available VIAVI product information. All datasets, measurements, telemetry, and examples are synthetic; no real, customer, confidential, proprietary, or VIAVI operational data was used. These materials are illustrative MVPs only and are not affiliated with or endorsed by VIAVI.
+
 A compact, CPU-only demonstration of a complete RF-interference data-to-insight pipeline. It produces randomized synthetic spectrogram windows, trains a small 2D PyTorch CNN, localizes the affected frequency range, and emits an inference JSON record. It is a synthetic-data MVP, not a validated production RF detector.
 
 The five supported classes are `no_interference`, `narrowband_continuous`, `wideband_intermittent`, `periodic_impulsive`, and `adjacent_channel_leakage`. Every non-empty class randomizes frequency position, bandwidth, amplitude, duration, duty cycle, and noise floor. The CNN has three output heads: class, normalized start/stop frequency, and low/moderate/high estimated service impact.
