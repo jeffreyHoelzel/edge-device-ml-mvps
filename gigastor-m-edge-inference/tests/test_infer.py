@@ -3,6 +3,7 @@ import json
 import numpy as np
 import pytest
 import torch
+import train as train_module
 
 from generate_data import CAUSES, SEVERITIES, generate_dataset
 from infer import build_event, load_jsonl_records, load_record_with_context
@@ -174,3 +175,23 @@ def test_jsonl_record_loader_rejects_nonobject_context(tmp_path, context) -> Non
 def test_training_rejects_invalid_configuration(tmp_path, epochs, batch_size) -> None:
     with pytest.raises(ValueError, match="at least 1"):
         train(tmp_path / "missing.npz", tmp_path / "model.pt", epochs=epochs, batch_size=batch_size)
+
+
+def test_training_saves_metrics_from_the_final_model_state(tmp_path, monkeypatch) -> None:
+    dataset = generate_dataset(samples=6, seed=9)
+    data_path = tmp_path / "flows.npz"
+    model_path = tmp_path / "model.pt"
+    np.savez(data_path, **dataset)
+    evaluations = []
+    original_evaluate = train_module.evaluate_validation
+
+    def record_evaluation(*args, **kwargs):
+        metrics = original_evaluate(*args, **kwargs)
+        evaluations.append(metrics)
+        return metrics
+
+    monkeypatch.setattr(train_module, "evaluate_validation", record_evaluation)
+    train_module.train(data_path, model_path, epochs=2, batch_size=6, seed=9)
+
+    assert len(evaluations) == 2
+    assert load_checkpoint(model_path).metadata["validation_metrics"] == evaluations[-1]
