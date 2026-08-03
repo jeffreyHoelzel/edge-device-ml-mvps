@@ -1,5 +1,7 @@
 # XEdge Predictive Service Assurance MVP
 
+> **Disclaimer:** These MVPs were created using only publicly available VIAVI product information. All datasets, measurements, telemetry, and examples are synthetic; no real, customer, confidential, proprietary, or VIAVI operational data was used. These materials are illustrative MVPs only and are not affiliated with or endorsed by VIAVI.
+
 A small, deterministic, CPU-only Python proof of concept that forecasts an impending network SLA degradation from a rolling KPI window. It uses synthetic data, temporal 1D convolutions, a GRU, and three output heads:
 
 - Incident probability

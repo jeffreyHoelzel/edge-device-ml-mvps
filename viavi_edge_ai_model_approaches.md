@@ -1,5 +1,7 @@
 # Task-Specific Edge AI Model Approaches for VIAVI Measurement Products
 
+> **Disclaimer:** These MVPs were created using only publicly available VIAVI product information. All datasets, measurements, telemetry, and examples are synthetic; no real, customer, confidential, proprietary, or VIAVI operational data was used. These materials are illustrative MVPs only and are not affiliated with or endorsed by VIAVI.
+
 **Status:** Concept exploration based on publicly available VIAVI product information  
 **Date:** August 2, 2026  
 **Scope:** Compact, task-specific models that operate directly on edge measurement products and convert real-time telemetry into structured, actionable insights for downstream consumers.
