@@ -113,6 +113,31 @@ PYTHONPATH=xedge-pred-assurance uv run pytest xedge-pred-assurance/tests
 - Keep changes scoped to one MVP unless a shared dependency, documentation, or
   repo-wide convention genuinely needs to change.
 
+## GitHub workflow
+
+- Use the GitHub CLI (`gh`) for GitHub-facing work. Confirm the active account
+  before interacting with the remote:
+
+  ```bash
+  gh auth status
+  ```
+
+- Before starting or resuming work, inspect the current branch and any related
+  pull request with `git status --short --branch`, `gh pr status`, and
+  `gh pr view` as appropriate. Use `gh pr checkout <number>` when continuing
+  an existing pull request.
+- Keep local branch synchronization explicit with Git (`git fetch origin` and
+  `git pull --ff-only` when updating a checked-out tracking branch). Use `gh`
+  for PR-aware remote operations rather than manually composing GitHub URLs or
+  relying on the web UI.
+- When a branch is ready for review, use `gh pr create --draft --fill` from its
+  worktree. This pushes an unpushed branch when prompted and opens a draft pull
+  request with the commit details; supply a clear title and body when needed.
+- Track review and CI through `gh pr view`, `gh pr checks`, and `gh pr diff`.
+  Address feedback on the existing branch, then use `gh pr ready` only when the
+  pull request is ready for review. Do not merge or close pull requests unless
+  explicitly asked.
+
 ## Commits
 
 Use a concise, imperative subject prefixed with a Conventional Commit-style
