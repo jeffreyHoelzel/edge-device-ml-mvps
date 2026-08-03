@@ -46,7 +46,7 @@ traces. `train.py` generates its in-memory data and writes a checkpoint;
 `model.py` are support modules, not standalone CLIs.
 
 ```bash
-uv run --directory fth-das-prog-forecast python train.py --epochs 2 --samples 160
+uv run --directory fth-das-prog-forecast python train.py --epochs 2 --samples 160 --no-enforce-quality
 uv run --directory fth-das-prog-forecast python infer.py --scenario excavation_approaching
 uv run --directory fth-das-prog-forecast python stream_demo.py --scenario excavation_approaching --updates 5
 uv run --directory fth-das-prog-forecast python visualize_track.py --scenario excavation_approaching
