@@ -31,8 +31,21 @@ def load_model(model_path: Path) -> DASRiskModel:
     metadata = checkpoint["metadata"]
     assert isinstance(metadata, dict)
     model.risk_tier_policy = metadata["risk_tier_policy"]
+    model.horizon_seconds = metadata["horizon_seconds"]
     model.eval()
     return model
+
+
+def resolve_horizon_seconds(model: DASRiskModel, requested_horizon_seconds: int | None) -> int:
+    """Use an explicit horizon or the loaded checkpoint's training horizon."""
+    if requested_horizon_seconds is not None:
+        if requested_horizon_seconds <= 0:
+            raise ValueError("horizon_seconds must be positive")
+        return requested_horizon_seconds
+    checkpoint_horizon = getattr(model, "horizon_seconds", DEFAULT_HORIZON_SECONDS)
+    if not isinstance(checkpoint_horizon, int) or checkpoint_horizon <= 0:
+        raise ValueError("model horizon_seconds must be a positive integer")
+    return checkpoint_horizon
 
 
 def forecast(
@@ -94,9 +107,17 @@ def main() -> None:
     parser.add_argument("--model-path", type=Path, default=Path("artifacts/das_risk_model.pt"))
     parser.add_argument("--scenario", choices=SCENARIOS, default="excavation_approaching")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--horizon-seconds", type=int)
     args = parser.parse_args()
-    signal, metadata = generate_sample(np.random.default_rng(args.seed), scenario=args.scenario)
-    result = forecast(load_model(args.model_path), signal, metadata.window_end_location_m, metadata.horizon_seconds)
+    model = load_model(args.model_path)
+    try:
+        horizon_seconds = resolve_horizon_seconds(model, args.horizon_seconds)
+    except ValueError as error:
+        parser.error(str(error))
+    signal, metadata = generate_sample(
+        np.random.default_rng(args.seed), scenario=args.scenario, horizon_seconds=horizon_seconds
+    )
+    result = forecast(model, signal, metadata.window_end_location_m, metadata.horizon_seconds)
     print(json.dumps(result, indent=2))
 
 

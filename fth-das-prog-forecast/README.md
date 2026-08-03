@@ -28,7 +28,7 @@ uv run --directory fth-das-prog-forecast python train.py --epochs 2 --samples 16
 
 The default checkpoint is `artifacts/das_risk_model.pt`. Checkpoints are format version 2 and include model architecture, label mappings, fiber and protected-zone geometry, timing, forecast horizon, seed, probability-tier policy, and held-out validation metrics. Earlier checkpoints are intentionally rejected; retrain with the current `train.py`.
 
-Training uses a separate fixed-seed synthetic validation dataset, retains the best validation checkpoint, and enforces modest deterministic quality gates by default. Use `--seed`, `--horizon-seconds`, `--validation-samples`, and `--validation-seed` to configure reproducible runs. `--no-enforce-quality` is intended only for smoke tests or exploration.
+Training uses a separate fixed-seed synthetic validation dataset, retains the best validation checkpoint, and enforces modest deterministic quality gates by default. Use `--seed`, `--horizon-seconds`, `--validation-samples`, and `--validation-seed` to configure reproducible runs. `--no-enforce-quality` is intended only for smoke tests or exploration. Inference, streaming, and evaluation use the checkpoint's recorded horizon by default; their optional `--horizon-seconds` argument explicitly overrides it.
 
 ## Test
 

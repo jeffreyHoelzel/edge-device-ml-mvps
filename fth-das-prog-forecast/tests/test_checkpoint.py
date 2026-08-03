@@ -9,7 +9,9 @@ from model import DASRiskModel
 def test_checkpoint_round_trip_loads_model(tmp_path) -> None:
     path = tmp_path / "model.pt"
     torch.save(create_checkpoint(DASRiskModel(), seed=9, horizon_seconds=180), path)
-    assert isinstance(load_model(path), DASRiskModel)
+    model = load_model(path)
+    assert isinstance(model, DASRiskModel)
+    assert model.horizon_seconds == 180
 
 
 def test_legacy_checkpoint_is_rejected_with_retraining_guidance(tmp_path) -> None:

@@ -9,7 +9,7 @@ import torch
 
 from checkpoint import create_checkpoint
 from generate_data import generate_sample
-from infer import forecast
+from infer import forecast, load_model, resolve_horizon_seconds
 from model import DASRiskModel
 from stream_demo import stream_forecasts
 
@@ -53,7 +53,7 @@ def test_stream_rejects_incomplete_traces() -> None:
 
 def test_inference_cli_loads_a_versioned_checkpoint(tmp_path) -> None:
     checkpoint_path = tmp_path / "model.pt"
-    torch.save(create_checkpoint(DASRiskModel(), seed=7), checkpoint_path)
+    torch.save(create_checkpoint(DASRiskModel(), seed=7, horizon_seconds=180), checkpoint_path)
     completed = subprocess.run(
         [sys.executable, "infer.py", "--model-path", str(checkpoint_path), "--scenario", "background_noise"],
         cwd=PROJECT_DIR,
@@ -63,6 +63,51 @@ def test_inference_cli_loads_a_versioned_checkpoint(tmp_path) -> None:
     )
     result = json.loads(completed.stdout)
     assert set(result) == FORECAST_FIELDS
+    assert result["risk_horizon_seconds"] == 180
+
+
+def test_inference_cli_horizon_override_takes_precedence(tmp_path) -> None:
+    checkpoint_path = tmp_path / "model.pt"
+    torch.save(create_checkpoint(DASRiskModel(), seed=7, horizon_seconds=180), checkpoint_path)
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "infer.py",
+            "--model-path",
+            str(checkpoint_path),
+            "--scenario",
+            "background_noise",
+            "--horizon-seconds",
+            "120",
+        ],
+        cwd=PROJECT_DIR,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert json.loads(completed.stdout)["risk_horizon_seconds"] == 120
+
+
+def test_stream_cli_uses_checkpoint_horizon(tmp_path) -> None:
+    checkpoint_path = tmp_path / "model.pt"
+    torch.save(create_checkpoint(DASRiskModel(), seed=7, horizon_seconds=180), checkpoint_path)
+    completed = subprocess.run(
+        [sys.executable, "stream_demo.py", "--model-path", str(checkpoint_path), "--updates", "2"],
+        cwd=PROJECT_DIR,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    records = [json.loads(line) for line in completed.stdout.splitlines()]
+    assert [record["risk_horizon_seconds"] for record in records] == [180, 180]
+
+
+def test_resolve_horizon_uses_a_loaded_model_default_and_explicit_override(tmp_path) -> None:
+    checkpoint_path = tmp_path / "model.pt"
+    torch.save(create_checkpoint(DASRiskModel(), seed=7, horizon_seconds=180), checkpoint_path)
+    model = load_model(checkpoint_path)
+    assert resolve_horizon_seconds(model, None) == 180
+    assert resolve_horizon_seconds(model, 120) == 120
 
 
 def test_visualization_cli_creates_an_image(tmp_path) -> None:

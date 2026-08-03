@@ -10,13 +10,12 @@ import torch
 from torch.utils.data import DataLoader
 
 from generate_data import (
-    DEFAULT_HORIZON_SECONDS,
     FIBER_LENGTH_M,
     MAX_SPEED_M_PER_MIN,
     PROTECTED_ZONE_CENTER_M,
     SyntheticDASDataset,
 )
-from infer import load_model
+from infer import load_model, resolve_horizon_seconds
 from model import DASRiskModel
 
 
@@ -120,14 +119,19 @@ def main() -> None:
     parser.add_argument("--samples", type=int, default=200)
     parser.add_argument("--seed", type=int, default=8)
     parser.add_argument("--batch-size", type=int, default=32)
-    parser.add_argument("--horizon-seconds", type=int, default=DEFAULT_HORIZON_SECONDS)
+    parser.add_argument("--horizon-seconds", type=int)
     parser.add_argument("--enforce-quality", action="store_true")
     args = parser.parse_args()
-    if args.samples <= 0 or args.batch_size <= 0 or args.horizon_seconds <= 0:
-        parser.error("--samples, --batch-size, and --horizon-seconds must be positive")
+    if args.samples <= 0 or args.batch_size <= 0:
+        parser.error("--samples and --batch-size must be positive")
+    model = load_model(args.model_path)
+    try:
+        horizon_seconds = resolve_horizon_seconds(model, args.horizon_seconds)
+    except ValueError as error:
+        parser.error(str(error))
     metrics = evaluate_model(
-        load_model(args.model_path),
-        SyntheticDASDataset(args.samples, seed=args.seed, horizon_seconds=args.horizon_seconds),
+        model,
+        SyntheticDASDataset(args.samples, seed=args.seed, horizon_seconds=horizon_seconds),
         args.batch_size,
     )
     print(json.dumps(metrics, indent=2, sort_keys=True))
