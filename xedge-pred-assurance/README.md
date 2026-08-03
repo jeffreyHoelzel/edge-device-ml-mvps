@@ -52,10 +52,10 @@ The tests cover generation determinism, data and artifact validation, forecast-q
 ## Run the streaming demo
 
 ```bash
-uv run --directory xedge-pred-assurance python stream_demo.py --model artifacts/model.pt --simulate --cause rf_interference
+uv run --directory xedge-pred-assurance python stream_demo.py --model artifacts/model.pt --cause rf_interference
 ```
 
-The simulation is explicit. For live-style operation, use `--stdin` and provide one JSON object per line. Each record must contain an RFC 3339 timestamp with timezone, a non-empty `service_id`, and all seven KPI fields. Each service has its own rolling window and must arrive exactly five seconds after its prior sample; malformed records and cadence gaps are reported to stderr and reset only the affected service.
+Simulation is the default; `--simulate` remains available for explicit invocation. For live-style operation, use `--stdin` and provide one JSON object per line. Each record must contain an RFC 3339 timestamp with timezone, a non-empty `service_id`, and all seven KPI fields. Each service has its own rolling window and must arrive exactly five seconds after its prior sample; malformed records and cadence gaps are reported to stderr and reset only the affected service.
 
 ```bash
 printf '%s\n' '{"timestamp":"2026-01-01T00:00:00Z","service_id":"edge-17","latency_ms":35,"jitter_ms":4,"packet_loss_pct":0.1,"uplink_mbps":35,"downlink_mbps":80,"signal_quality_pct":82,"retransmission_count":1}' | uv run --directory xedge-pred-assurance python stream_demo.py --model artifacts/model.pt --stdin

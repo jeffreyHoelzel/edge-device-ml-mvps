@@ -16,15 +16,19 @@ from model import load_model
 from streaming import forecast_event, run_jsonl
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", type=Path, default=Path("artifacts/model.pt"))
-    mode = parser.add_mutually_exclusive_group(required=True)
+    mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--simulate", action="store_true")
     mode.add_argument("--stdin", action="store_true")
     parser.add_argument("--cause", choices=CAUSE_NAMES, default="rf_interference")
     parser.add_argument("--seed", type=int, default=17)
-    args = parser.parse_args()
+    return parser
+
+
+def main() -> None:
+    args = build_parser().parse_args()
     if not args.model.exists():
         raise FileNotFoundError(f"{args.model} was not found; run train.py first")
     loaded = load_model(args.model)
