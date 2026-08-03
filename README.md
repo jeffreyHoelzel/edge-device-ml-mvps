@@ -19,7 +19,7 @@ Run an MVP command from the root environment with `--directory`:
 
 ```bash
 uv run --directory advisor-infra python train.py
-uv run --directory fth-das-prog-forecast python train.py --epochs 2 --samples 160
+uv run --directory fth-das-prog-forecast python train.py --epochs 2 --samples 160 --no-enforce-quality
 uv run --directory gigastor-m-edge-infra python stream_demo.py --events 5
 uv run --directory xedge-pred-assurance python stream_demo.py --cause rf_interference
 ```
