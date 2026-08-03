@@ -40,3 +40,32 @@ def test_jsonl_runner_reports_bad_records_and_continues() -> None:
     run_jsonl(loaded_model(), source, output, errors)
     assert "line 1" in errors.getvalue()
     assert len(output.getvalue().splitlines()) == 1
+
+
+@pytest.mark.parametrize("value", ("1", True))
+def test_processor_rejects_non_numeric_kpis(value: object) -> None:
+    item = record("2026-01-01T00:00:00Z")
+    item["latency_ms"] = value
+
+    with pytest.raises(ValueError, match="JSON numbers"):
+        KpiStreamProcessor(loaded_model()).process(item)
+
+
+def test_jsonl_runner_continues_after_overflowing_kpi_value() -> None:
+    invalid = record("2026-01-01T00:00:00Z")
+    invalid["latency_ms"] = 10**400
+    source = io.StringIO(
+        json.dumps(invalid)
+        + "\n"
+        + json.dumps(record("2026-01-01T00:00:00Z"))
+        + "\n"
+        + json.dumps(record("2026-01-01T00:00:05Z"))
+        + "\n"
+    )
+    output = io.StringIO()
+    errors = io.StringIO()
+
+    run_jsonl(loaded_model(), source, output, errors)
+
+    assert "line 1" in errors.getvalue()
+    assert len(output.getvalue().splitlines()) == 1

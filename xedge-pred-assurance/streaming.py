@@ -54,7 +54,13 @@ class KpiStreamProcessor:
         if not isinstance(service_id, str) or not service_id:
             raise ValueError("service_id must be a non-empty string")
         timestamp = _parse_timestamp(record["timestamp"])
-        values = np.asarray([record[name] for name in contract.feature_names], dtype=np.float32)
+        raw_values = [record[name] for name in contract.feature_names]
+        if any(isinstance(value, bool) or not isinstance(value, (int, float)) for value in raw_values):
+            raise ValueError("KPI values must be JSON numbers")
+        try:
+            values = np.asarray(raw_values, dtype=np.float32)
+        except OverflowError as error:
+            raise ValueError("KPI values must be finite numbers") from error
         if not np.isfinite(values).all():
             raise ValueError("KPI values must be finite numbers")
         previous = self.last_timestamp.get(service_id)
