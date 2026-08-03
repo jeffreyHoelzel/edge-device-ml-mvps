@@ -124,7 +124,10 @@ def load_jsonl_records(path: Path) -> list[tuple[np.ndarray, np.ndarray, dict[st
             value = json.loads(line)
             features = np.asarray(value["features"], dtype=np.float32)
             baseline = np.asarray(value["baseline"], dtype=np.float32)
-            context = {str(key): str(item) for key, item in value.get("context", {}).items()}
+            raw_context = value.get("context", {})
+            if not isinstance(raw_context, dict):
+                raise ValueError("context must be an object")
+            context = {str(key): str(item) for key, item in raw_context.items()}
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
             raise ValueError(f"invalid JSONL record on line {line_number}: {error}") from error
         if features.ndim != 2 or features.shape[0] < 3 or features.shape[1:] != (len(FEATURE_NAMES),):

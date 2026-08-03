@@ -156,6 +156,20 @@ def test_jsonl_record_loader_rejects_invalid_record_shapes(tmp_path, features, b
         load_jsonl_records(path)
 
 
+def test_jsonl_record_loader_accepts_omitted_context(tmp_path) -> None:
+    path = tmp_path / "records.jsonl"
+    path.write_text(json.dumps({"features": [[1.0] * 9] * 3, "baseline": [1.0] * 9}) + "\n")
+    assert load_jsonl_records(path)[0][2] == {}
+
+
+@pytest.mark.parametrize("context", [[], "external-1", None])
+def test_jsonl_record_loader_rejects_nonobject_context(tmp_path, context) -> None:
+    path = tmp_path / "records.jsonl"
+    path.write_text(json.dumps({"features": [[1.0] * 9] * 3, "baseline": [1.0] * 9, "context": context}) + "\n")
+    with pytest.raises(ValueError, match="invalid JSONL record on line 1: context must be an object"):
+        load_jsonl_records(path)
+
+
 @pytest.mark.parametrize(("epochs", "batch_size"), [(0, 1), (1, 0)])
 def test_training_rejects_invalid_configuration(tmp_path, epochs, batch_size) -> None:
     with pytest.raises(ValueError, match="at least 1"):
