@@ -157,6 +157,11 @@ def main() -> None:
     device = torch.device("cpu")
     features, classes, bounds, impacts = load_training_data(args.data)
     train_indices, validation_indices = stratified_split_indices(classes, args.seed)
+    if len(validation_indices) == 0:
+        parser.error(
+            "validation split is empty; provide repeated-class training data. "
+            "The balanced synthetic generator requires at least 10 samples."
+        )
     singleton_ids = sorted(int(class_id) for class_id in torch.unique(classes) if int((classes == class_id).sum()) == 1)
     if singleton_ids:
         singleton_names = ", ".join(str(class_id) for class_id in singleton_ids)

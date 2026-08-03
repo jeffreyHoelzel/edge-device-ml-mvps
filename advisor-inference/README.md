@@ -27,7 +27,7 @@ uv run --directory advisor-inference python visualize_sample.py --input data/exa
 uv run --directory advisor-inference python train.py --data data/train.npz --epochs 18 --model-output artifacts/rf_interference_cnn.pt
 ```
 
-The checkpoint contains CPU-compatible model weights plus versioned input, label, normalization, seed, and validation-metric metadata. Training reports class accuracy, impact accuracy, and positive-window frequency-bound MAE, and saves the best validation epoch.
+The checkpoint contains CPU-compatible model weights plus versioned input, label, normalization, seed, and validation-metric metadata. Training reports class accuracy, impact accuracy, and positive-window frequency-bound MAE, and saves the best validation epoch. Training requires a non-empty held-out validation split; use at least 10 samples with the balanced synthetic generator so every class has a repeated example.
 
 ## Run inference
 

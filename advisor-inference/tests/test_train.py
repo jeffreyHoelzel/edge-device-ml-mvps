@@ -1,9 +1,11 @@
+import sys
+
 import numpy as np
 import pytest
 import torch
 
 from contract import FREQUENCY_BINS, TIME_BINS, normalize_per_window
-from train import evaluate, is_better_metrics, load_training_data, positive_float, positive_int, stratified_split_indices
+from train import evaluate, is_better_metrics, load_training_data, main, positive_float, positive_int, stratified_split_indices
 
 
 def _write_dataset(path, **overrides: np.ndarray) -> None:
@@ -91,6 +93,25 @@ def test_stratified_split_is_seeded_non_overlapping_and_preserves_singletons() -
     assert 8 in train_indices.tolist()
     assert 8 not in validation_indices.tolist()
     assert set(classes[validation_indices].tolist()) == {0, 1}
+
+
+def test_train_rejects_an_empty_validation_split(tmp_path, monkeypatch, capsys) -> None:
+    path = tmp_path / "singletons.npz"
+    model_path = tmp_path / "model.pt"
+    _write_dataset(
+        path,
+        spectrograms=np.zeros((5, 1, TIME_BINS, FREQUENCY_BINS), dtype=np.float32),
+        classes=np.arange(5, dtype=np.int64),
+        bounds=np.array([[0.0, 0.0], [0.2, 0.4], [0.2, 0.4], [0.2, 0.4], [0.2, 0.4]], dtype=np.float32),
+        impacts=np.zeros(5, dtype=np.int64),
+    )
+    monkeypatch.setattr(sys, "argv", ["train.py", "--data", str(path), "--model-output", str(model_path)])
+
+    with pytest.raises(SystemExit, match="2"):
+        main()
+
+    assert "validation split is empty" in capsys.readouterr().err
+    assert not model_path.exists()
 
 
 class _FixedOutputModel(torch.nn.Module):
