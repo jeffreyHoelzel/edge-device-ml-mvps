@@ -9,34 +9,67 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from checkpoint import RISK_TIER_POLICY, validate_checkpoint
 from generate_data import (
     CLASS_LABELS,
     DEFAULT_HORIZON_SECONDS,
     DIRECTION_LABELS,
-    FIBER_LENGTH_M,
+    PROTECTED_ZONE_CENTER_M,
+    PROTECTED_ZONE_HALF_WIDTH_M,
     SCENARIOS,
     generate_sample,
+    project_future_location,
+    validate_geometry,
 )
 from model import DASRiskModel
 
 
 def load_model(model_path: Path) -> DASRiskModel:
-    checkpoint = torch.load(model_path, map_location="cpu", weights_only=True)
+    checkpoint = validate_checkpoint(torch.load(model_path, map_location="cpu", weights_only=True))
     model = DASRiskModel(**checkpoint["model_config"])
     model.load_state_dict(checkpoint["model_state"])
+    metadata = checkpoint["metadata"]
+    assert isinstance(metadata, dict)
+    model.risk_tier_policy = metadata["risk_tier_policy"]
+    model.horizon_seconds = metadata["horizon_seconds"]
     model.eval()
     return model
 
 
-def forecast(model: DASRiskModel, signal: np.ndarray, current_location_m: float, horizon_seconds: int) -> dict[str, object]:
+def resolve_horizon_seconds(model: DASRiskModel, requested_horizon_seconds: int | None) -> int:
+    """Use an explicit horizon or the loaded checkpoint's training horizon."""
+    if requested_horizon_seconds is not None:
+        if requested_horizon_seconds <= 0:
+            raise ValueError("horizon_seconds must be positive")
+        return requested_horizon_seconds
+    checkpoint_horizon = getattr(model, "horizon_seconds", DEFAULT_HORIZON_SECONDS)
+    if not isinstance(checkpoint_horizon, int) or checkpoint_horizon <= 0:
+        raise ValueError("model horizon_seconds must be a positive integer")
+    return checkpoint_horizon
+
+
+def forecast(
+    model: DASRiskModel,
+    signal: np.ndarray,
+    current_location_m: float,
+    horizon_seconds: int,
+    protected_zone_center_m: float = PROTECTED_ZONE_CENTER_M,
+    protected_zone_half_width_m: float = PROTECTED_ZONE_HALF_WIDTH_M,
+) -> dict[str, object]:
+    if not np.isfinite(current_location_m) or not 0 <= current_location_m <= 2_500:
+        raise ValueError("current_location_m must be finite and within the modeled fiber")
+    if horizon_seconds <= 0:
+        raise ValueError("horizon_seconds must be positive")
+    validate_geometry(protected_zone_center_m, protected_zone_half_width_m)
     with torch.inference_mode():
         outputs = model(torch.from_numpy(signal).unsqueeze(0))
     event_type = CLASS_LABELS[int(outputs["event_logits"].argmax(dim=1).item())]
     direction = DIRECTION_LABELS[int(outputs["direction_logits"].argmax(dim=1).item())]
     probability = float(outputs["escalation_probability"].item())
-    if probability >= 0.67:
+    policy = getattr(model, "risk_tier_policy", RISK_TIER_POLICY)
+    if probability >= policy["high_threshold"]:
         risk = "high"
-    elif probability >= 0.35:
+    elif probability >= policy["medium_threshold"]:
         risk = "medium"
     else:
         risk = "low"
@@ -45,12 +78,22 @@ def forecast(model: DASRiskModel, signal: np.ndarray, current_location_m: float,
         "away_from_asset": "moving_away_from_protected_asset",
         "stationary": "stationary",
     }[direction]
+    toward_sign = 1 if current_location_m < protected_zone_center_m else -1
+    direction_sign = {
+        "stationary": 0,
+        "toward_asset": toward_sign,
+        "away_from_asset": -toward_sign,
+    }[direction]
+    speed = float(outputs["speed_m_per_min"].item())
+    if direction == "stationary":
+        speed = 0.0
+    future_location = project_future_location(current_location_m, direction_sign, speed, horizon_seconds)
     return {
         "event_type": event_type,
         "current_location_m": round(current_location_m),
         "trajectory": trajectory,
-        "estimated_speed_m_per_min": round(float(outputs["speed_m_per_min"].item()), 2),
-        "predicted_future_location_m": round(float(outputs["future_location"].item()) * FIBER_LENGTH_M, 1),
+        "estimated_speed_m_per_min": round(speed, 2),
+        "predicted_future_location_m": round(future_location, 1),
         "risk_horizon_seconds": horizon_seconds,
         "escalation_probability": round(probability, 3),
         "predicted_risk": risk,
@@ -62,9 +105,17 @@ def main() -> None:
     parser.add_argument("--model-path", type=Path, default=Path("artifacts/das_risk_model.pt"))
     parser.add_argument("--scenario", choices=SCENARIOS, default="excavation_approaching")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--horizon-seconds", type=int)
     args = parser.parse_args()
-    signal, metadata = generate_sample(np.random.default_rng(args.seed), scenario=args.scenario)
-    result = forecast(load_model(args.model_path), signal, metadata.current_location_m, metadata.horizon_seconds)
+    model = load_model(args.model_path)
+    try:
+        horizon_seconds = resolve_horizon_seconds(model, args.horizon_seconds)
+    except ValueError as error:
+        parser.error(str(error))
+    signal, metadata = generate_sample(
+        np.random.default_rng(args.seed), scenario=args.scenario, horizon_seconds=horizon_seconds
+    )
+    result = forecast(model, signal, metadata.window_end_location_m, metadata.horizon_seconds)
     print(json.dumps(result, indent=2))
 
 

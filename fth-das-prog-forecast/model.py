@@ -5,7 +5,7 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-from generate_data import CLASS_LABELS, DIRECTION_LABELS, MAX_SPEED_M_PER_MIN
+from generate_data import CLASS_LABELS, DIRECTION_LABELS, MAX_SPEED_M_PER_MIN, validate_signal
 
 
 class DASRiskModel(nn.Module):
@@ -23,11 +23,11 @@ class DASRiskModel(nn.Module):
         self.event_head = nn.Linear(hidden_size, len(CLASS_LABELS))
         self.direction_head = nn.Linear(hidden_size, len(DIRECTION_LABELS))
         self.speed_head = nn.Linear(hidden_size, 1)
-        self.location_head = nn.Linear(hidden_size, 1)
         self.escalation_head = nn.Linear(hidden_size, 1)
 
     def forward(self, signal: torch.Tensor) -> dict[str, torch.Tensor]:
-        """Accept [batch, time, distance] normalized intensity data."""
+        """Accept [batch, time, distance] raw synthetic intensity data."""
+        validate_signal(signal)
         batch, steps, distance = signal.shape
         spatial = self.spatial_cnn(signal.reshape(batch * steps, 1, distance))
         sequence = spatial.flatten(1).reshape(batch, steps, -1)
@@ -37,6 +37,5 @@ class DASRiskModel(nn.Module):
             "event_logits": self.event_head(features),
             "direction_logits": self.direction_head(features),
             "speed_m_per_min": torch.sigmoid(self.speed_head(features)).squeeze(-1) * MAX_SPEED_M_PER_MIN,
-            "future_location": torch.sigmoid(self.location_head(features)).squeeze(-1),
             "escalation_probability": torch.sigmoid(self.escalation_head(features)).squeeze(-1),
         }
