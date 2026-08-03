@@ -2,6 +2,12 @@
 
 > **Disclaimer:** These MVPs were created using only publicly available VIAVI product information. All datasets, measurements, telemetry, and examples are synthetic; no real, customer, confidential, proprietary, or VIAVI operational data was used. These materials are illustrative MVPs only and are not affiliated with or endorsed by VIAVI.
 
+## Executive Summary
+
+This MVP demonstrates predictive network-service assurance at the edge: it uses a rolling synthetic KPI window to forecast a service degradation 60 seconds ahead, then reports its probability, likely cause, and severity as structured JSON. The workflow illustrates early warning from local measurements for an alarm, dashboard, or targeted diagnostic action; it is a deterministic, CPU-only proof of concept rather than a field-validated service-assurance model.
+
+Its intended VIAVI target is XEdge monitoring sensors. This is a conceptual integration target, not a claim of deployment, compatibility, or validation on the product.
+
 A small, deterministic, CPU-only Python proof of concept that forecasts an impending network SLA degradation from a rolling KPI window. It uses synthetic data, temporal 1D convolutions, a GRU, and three output heads:
 
 - Incident probability

@@ -2,6 +2,12 @@
 
 > **Disclaimer:** These MVPs were created using only publicly available VIAVI product information. All datasets, measurements, telemetry, and examples are synthetic; no real, customer, confidential, proprietary, or VIAVI operational data was used. These materials are illustrative MVPs only and are not affiliated with or endorsed by VIAVI.
 
+## Executive Summary
+
+This MVP explores the predictive step after edge event detection: given a synthetic time-by-distance signal and the event's recent motion, it forecasts whether the event may escalate toward a protected fiber location. Its structured output combines event type, trajectory, speed, future location, and escalation probability, illustrating how a local sensor workflow can prioritize potentially higher-risk activity while keeping the demonstration CPU-only and synthetic.
+
+Its intended VIAVI target is the FTH-DAS distributed acoustic sensing interrogator. This is a conceptual integration target, not a claim of deployment, compatibility, or validation on the product.
+
 This is a small, CPU-only research MVP that forecasts whether a synthetic physical event may escalate toward a protected fiber location. It uses generated spatiotemporal intensity arrays shaped as **time × distance along a fiber**. It is not real DAS data processing and is not an implementation of any proprietary VIAVI pipeline.
 
 The model is a small spatial 1D CNN followed by a GRU. It predicts an event class, trajectory direction, speed, and escalation probability. The forecast location is deterministically projected from the final frame's supplied physical location, predicted trajectory and speed, and the requested horizon. Synthetic cases cover background noise, passing vehicles, stationary vibration, excavation approaching the asset, and excavation moving away.
