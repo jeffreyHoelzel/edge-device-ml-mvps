@@ -31,6 +31,8 @@ def validate_dataset(data: Mapping[str, np.ndarray]) -> dict[str, np.ndarray]:
         raise ValueError("causes, severity, and incident must each have one value per sample")
     if any(result[field].shape != (samples,) for field in ("flow_ids", "device_ids", "interfaces", "window_ends")):
         raise ValueError("context fields must each have one value per sample")
+    if not np.issubdtype(features.dtype, np.number) or not np.issubdtype(baselines.dtype, np.number):
+        raise ValueError("features and baselines must contain numeric values")
     if not np.isfinite(features).all() or not np.isfinite(baselines).all():
         raise ValueError("features and baselines must contain only finite values")
     if tuple(result["feature_names"].tolist()) != FEATURE_NAMES:

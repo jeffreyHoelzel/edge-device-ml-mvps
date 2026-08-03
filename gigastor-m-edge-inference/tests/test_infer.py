@@ -116,6 +116,15 @@ def test_dataset_contract_rejects_missing_and_nonfinite_values() -> None:
         validate_dataset(broken)
 
 
+@pytest.mark.parametrize("field", ["features", "baselines"])
+def test_dataset_contract_rejects_nonnumeric_values(field) -> None:
+    dataset = generate_dataset(samples=6)
+    broken = dict(dataset)
+    broken[field] = np.full(broken[field].shape, "invalid")
+    with pytest.raises(ValueError, match="numeric"):
+        validate_dataset(broken)
+
+
 def test_generator_includes_deterministic_normal_traffic() -> None:
     first = generate_dataset(samples=12, seed=8)
     second = generate_dataset(samples=12, seed=8)
